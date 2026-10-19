@@ -8,7 +8,7 @@ This file summarizes sanitized outputs from successful lab runs and read-only ch
 - Ansible control node: Ansible Core 2.20.1, Python 3.14.4
 - Target Python interpreter discovered by Ansible: `/usr/bin/python3.14`
 - Assessment tool: Lynis 3.1.7
-- Topology: Windows workstation → WSL SSH client → `mds-admin-01` Ansible control node → isolated VirtualBox network → `mds-ubuntu-server-01` target
+- Topology: Windows laptop and WSL → `mds-admin-01` Ansible control node → isolated VirtualBox network → `mds-ubuntu-server-01` target. Windows PowerShell/OpenSSH copied the induction ZIP to the admin VM; WSL handled the Lynis transfer.
 
 ## After `harden.yml`
 
