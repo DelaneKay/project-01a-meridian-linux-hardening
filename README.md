@@ -62,7 +62,7 @@ ansible/                          Final, separate playbooks (pending transfer)
   inventory/hosts.ini.example     Safe inventory example without credentials
 ```
 
-The inventory example will use placeholders rather than keys, passwords or the live inventory file. No real customer data, private keys, credentials, raw provisioning payload, or hidden exercise answers belong in this portfolio repository.
+The inventory example uses placeholders rather than keys, passwords or the live inventory file. No real customer data, private keys, credentials, raw provisioning payload, or hidden exercise answers belong in this portfolio repository.
 
 ## Scope and limits
 
