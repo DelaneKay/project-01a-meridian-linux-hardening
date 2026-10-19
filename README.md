@@ -69,7 +69,7 @@ The second run checked the report and access controls again with `changed=0`, sh
 
 ## Step-by-step walkthrough
 
-The [project journey](docs/step-by-step-lab-walkthrough.md) is a first-person account of how I set up the local VirtualBox lab, transferred the induction ZIP, investigated the existing workload with Lynis and Linux tools, applied Ansible changes, and checked the results. It explains why I took each step, distinguishes captured commands from details that were reconstructed or not preserved, and notes that the transferred ZIP is not verified as the package that seeded the target.
+The [project journey](docs/step-by-step-lab-walkthrough.md) is a first-person account of how I set up the local VirtualBox lab, transferred the induction ZIP, investigated the existing workload with Lynis and Linux tools, applied Ansible changes, and checked the results. It explains the security principle behind each decision, how it addressed the Meridian scenario, and what the evidence supports. It also maps the work to ISC2 CC, Google Cybersecurity Certificate, and AWS Security Specialty learning topics, while making clear this was a local Linux lab rather than an AWS deployment or proof of certification.
 
 ## Repository map
 
