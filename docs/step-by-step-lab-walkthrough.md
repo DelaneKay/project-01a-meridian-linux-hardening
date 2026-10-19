@@ -159,6 +159,119 @@ The service returned `active`. The effective properties showed `User=mds-reports
 
 To run a `runuser` access check through Ansible, the remote command needs administrative privilege because `runuser` is restricted to root on this target. Include `-b --ask-become-pass`; without it, the command either failed with “may not be used by non-root users” or Ansible asked for a missing become password. A successful `test -r` or `test -w` prints no text; use its return code: `0` means allowed, `1` means the permission check was denied.
 
+## 9. Troubleshooting and verification steps recorded during the work
+
+These checks explain several detours that are easy to miss if we show only the final successful runs.
+
+### Check whether Lynis was installed as a package
+
+On the target, this package query returned “no packages found matching lynis”:
+
+```sh
+dpkg-query -W lynis
+```
+
+That did not mean Lynis was unavailable. We had cloned the 3.1.7 source tree and transferred it ourselves, so it was not registered in the system package database.
+
+The first attempt to run it by its home-directory path failed with “can't find include directory.” After changing into the program directory, this worked:
+
+```sh
+cd ~/lynis-3.1.7
+./lynis show version
+```
+
+It printed `3.1.7`. Lynis locates its support files relative to its working directory, which is why running from the correct extracted tree matters.
+
+### Understand the Lynis ownership guard and inspect the installed tree
+
+The first privileged audit from the user-owned tree stopped at Lynis's safety prompt. It identified `include/functions` as not root-owned and explained that root should not execute files a less-privileged user can change. We cancelled that run with Ctrl+C rather than bypassing the check.
+
+The target showed `/opt` was root-owned:
+
+```sh
+ls -ld /opt
+```
+
+After the program tree was placed under `/opt/lynis-3.1.7`, these checks showed the tree and main files' ownership and modes:
+
+```sh
+ls -ld /opt/lynis-3.1.7 /opt/lynis-3.1.7/include /opt/lynis-3.1.7/include/functions /opt/lynis-3.1.7/lynis
+```
+
+The observed output showed root ownership, including for `include/functions`. The exact command originally used to place the tree under `/opt` was not preserved, so this guide does not present a guessed copy command as historical fact.
+
+The audit was then run from the installed program directory:
+
+```sh
+cd /opt/lynis-3.1.7
+sudo ./lynis audit system --quick
+```
+
+The audit completed and its log recorded a warning about `/etc/sudoers.d`: it was root-owned but mode `0755`, which Lynis considered possibly unsafe. We inspected the finding and left it unchanged pending confirmation of the expected system policy.
+
+A later search checked ownership and group/world write bits throughout the Lynis tree:
+
+```sh
+sudo find /opt/lynis-3.1.7 \\( ! -user root -o ! -group root -o -perm /022 \\) -print
+```
+
+It listed language symlinks. We inspected them with:
+
+```sh
+ls -l /opt/lynis-3.1.7/db/languages/{en-GB,nl-BE,de-AT,br,nl-NL,en-US}
+```
+
+The output showed links to the shared language files (for example, `en-GB -> en`). Symbolic links commonly display mode `777`; that display does not mean the link itself can be made writable in the same way as a regular file. For a follow-up check specifically of regular files, use:
+
+```sh
+sudo find /opt/lynis-3.1.7 -type f \\( ! -user root -o ! -group root -o -perm /022 \\) -print
+```
+
+That final `-type f` form is a clearer diagnostic refinement; it was not part of the recorded terminal output.
+
+### Check the service identity and explain the access-test failures
+
+Before the account existed, a lookup returned no matching user. The Ansible task then created the system account `mds-reports` with a non-login shell. Later, systemd checks confirmed the worker used this account:
+
+```sh
+ansible -i inventory/hosts.ini mds-ubuntu-server-01 -m ansible.builtin.command -a "systemctl is-active mds-reports.service"
+ansible -i inventory/hosts.ini mds-ubuntu-server-01 -m ansible.builtin.command -a "systemctl show mds-reports.service -p User -p Group -p MainPID"
+```
+
+The service was active and systemd reported `User=mds-reports` and `Group=mds-reports`. We then checked the actual process identity using the reported main PID (the number changes after a restart):
+
+```sh
+ansible -i inventory/hosts.ini mds-ubuntu-server-01 -m ansible.builtin.command -a "ps -p 42826 -o pid,euser,egroup,args"
+```
+
+It showed the mock placeholder process running as `mds-reports`. Later, `systemctl cat mds-reports.service` showed both the original unit and its override; reading the combined unit helped explain why the drop-in settings took effect.
+
+The first direct `runuser` checks failed because `runuser` is restricted to root on this target, and some Ansible ad-hoc commands were run without privilege escalation. The working pattern was to add `-b --ask-become-pass`, for example:
+
+```sh
+ansible -i inventory/hosts.ini mds-ubuntu-server-01 -b -m ansible.builtin.command -a "runuser -u mds-reports -- test -w /srv/mds/records/customers.csv" --ask-become-pass
+```
+
+A successful `test` is intentionally silent and returns code 0. A denied permission check returns code 1, which makes Ansible show a direct ad-hoc task as failed. In the playbook, the negative tests explicitly treat return code 1 as the expected result; that is why the final playbook recap is successful when access is denied as intended.
+
+The customer-file state was checked with a command equivalent to:
+
+```sh
+ansible -i inventory/hosts.ini mds-ubuntu-server-01 -m ansible.builtin.command -a "stat -c '%A %a %U:%G %n' /srv/mds/records/customers.csv"
+```
+
+The observed mode and owner were `600 mds-reports:mds-reports`. The final `harden.yml` then automated both the permission change and the positive/negative access tests.
+
+### Apply hardening in small, reviewable stages
+
+During the build, the service runtime changes were also run by tag so that only the matching tasks were selected:
+
+```sh
+ansible-playbook -i inventory/hosts.ini harden.yml --tags service_runtime --ask-become-pass
+```
+
+The final playbooks remain separate: `harden.yml` creates the service identity, applies its systemd restrictions, and protects customer records; `data-files.yml` protects logs and archives; `mock-worker.yml` installs and verifies the synthetic workload. The final end-to-end commands are listed earlier in this guide.
+
 ## 9. Record findings and publish the portfolio evidence
 
 The findings record explains the risk, control, and verification for the customer file, service runtime, and data paths. It also records Lynis's `/etc/sudoers.d` warning as reviewed but unresolved; the directory was root-owned and not writable by ordinary accounts, so it was not changed without checking the expected system policy.
