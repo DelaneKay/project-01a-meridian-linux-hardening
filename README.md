@@ -55,14 +55,32 @@ The original reporting unit also used permissive settings such as `UMask=0000`, 
 ```text
 README.md                         This case study and lab architecture
 evidence/                         Selected synthetic verification output
-ansible/                          Final, separate playbooks (pending transfer)
+ansible/                          Final playbooks copied from the admin server
   harden.yml                      Reporting identity, systemd and customer file
   data-files.yml                  Log and archive permissions and writable paths
   mock-worker.yml                 Synthetic workload and runtime checks
   inventory/hosts.ini.example     Safe inventory example without credentials
 ```
 
-The inventory example uses placeholders rather than keys, passwords or the live inventory file. No real customer data, private keys, credentials, raw provisioning payload, or hidden exercise answers belong in this portfolio repository.
+The inventory example uses placeholders rather than keys, passwords or the live inventory file. No real customer data, private keys, credentials, raw provisioning payload, or hidden exercise answers belong in this portfolio repository. The three playbooks were copied from `mds-admin-01`; SHA-256 checksums matched the source files.
+
+
+## Run the playbooks
+
+From the Ansible control node, copy `inventory/hosts.ini.example` to `inventory/hosts.ini`, then replace the example SSH key path with the key path already configured for your lab. Keep the real inventory and private key out of Git.
+
+Run the playbooks in this order:
+
+```sh
+cd ~/mds-devsecops/ansible
+ansible-playbook -i inventory/hosts.ini harden.yml --ask-become-pass
+ansible-playbook -i inventory/hosts.ini data-files.yml --ask-become-pass
+ansible-playbook -i inventory/hosts.ini mock-worker.yml --ask-become-pass
+```
+
+The first playbook creates the restricted service identity, applies systemd limits, protects the customer record file, and checks who can access it. The second permits the service's log and archive paths and locks down their ownership and modes. The third installs the synthetic reporting worker, switches the systemd unit to it, and checks the generated report, service state, and ordinary-admin access. `--ask-become-pass` makes Ansible prompt for the sudo password instead of storing it in the command or inventory.
+
+These playbooks change the lab target. Read each task before running it, confirm the inventory points at the intended isolated VM, and keep access to the VM console available for recovery.
 
 ## Scope and limits
 
