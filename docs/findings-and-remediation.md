@@ -6,7 +6,7 @@
 
 ## Finding 1 — Any local account could modify the customer file
 
-**Evidence before remediation:** `/srv/mds/records/customers.csv` was root-owned with mode `0666` (`-rw-rw-rw-`). Those permission bits allow any local account to write the existing file, including changing or emptying its contents.
+**Evidence before remediation:** `/srv/mds/records/customers.csv` was root-owned with mode `0666` (`-rw-rw-rw-`). Those permission bits allow local accounts that can traverse the parent directories to write the existing file, including changing or emptying its contents.
 
 **Risk:** An ordinary local account could tamper with synthetic customer records. This is an integrity risk and could undermine reports that depend on the file.
 
@@ -28,7 +28,7 @@
 
 **Evidence before remediation:** The log directory was root-owned mode `0755`; `application.log` was root-owned mode `0666`; the archive directory was root-owned mode `0777`; and `export.csv` was root-owned mode `0644`.
 
-**Risk:** Other local accounts could read customer exports and, for the world-writable log and archive paths, could change or remove data.
+**Risk:** Other local accounts could read customer exports and, could alter the world-writable log. The world-writable archive directory also allowed creation or removal of entries where directory traversal was permitted.
 
 **Control applied:** `data-files.yml` set `/srv/mds/logs` and `/srv/mds/archive` to `mds-reports:mds-reports` mode `0700`; it set `application.log` and `export.csv` to that owner and mode `0600`. A separate systemd drop-in allowed writes to the two required paths under `ProtectSystem=strict`.
 
@@ -37,6 +37,12 @@
 ## Lynis observation reviewed but not changed
 
 Lynis 3.1.7 reported `/etc/sudoers.d` as root-owned with mode `0755` and labelled its permissions “possibly unsafe.” The directory's mode grants write access only to its owner (root); group and other write bits are absent. The report did not by itself show that an ordinary account could edit sudo configuration. This project recorded the warning for policy review and did not change the directory, because sudoers permissions need to be checked against the distribution's expected configuration before remediation.
+
+## Verification limits
+
+The customer-file tests check read/write permission as each account. They do not test deletion or replacement through parent-directory permissions. The service identity and systemd properties are verified, but the published tests do not attempt forbidden writes from inside the service namespace.
+
+The mock-worker playbook waits for report existence. If a report already exists, that check alone cannot prove a fresh write during the current run. Service activity is checked separately. A stronger future test would observe a new timestamp or modification time and verify a new log entry.
 
 ## Scope notes
 
