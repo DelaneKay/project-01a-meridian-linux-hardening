@@ -74,6 +74,8 @@ README.md                         This case study, architecture and run instruct
 docs/findings-and-remediation.md  Evidence-to-control record
 docs/step-by-step-lab-walkthrough.md Commands and full lab sequence
 evidence/                         Sanitized verification output and two screenshots
+lab-assets/mds-induction.zip       AI-generated synthetic workload provisioning archive
+lab-assets/mds-induction.sha256   SHA-256 checksum for the unchanged archive
 ansible/                          Final playbooks copied from the admin server
   harden.yml                      Reporting identity, systemd and customer file
   data-files.yml                  Log and archive permissions and writable paths
@@ -81,7 +83,7 @@ ansible/                          Final playbooks copied from the admin server
   inventory/hosts.ini.example     Safe inventory example without credentials
 ```
 
-The inventory example uses placeholders rather than keys, passwords or the live inventory file. No real customer data, private keys, credentials, raw provisioning payload, or hidden exercise answers belong in this portfolio repository. The three playbooks were copied from `mds-admin-01`; SHA-256 checksums matched the source files. The archive used to seed the deliberately vulnerable target is not in this repository yet; the walkthrough identifies it separately from the Lynis source archive.
+The inventory example uses placeholders rather than keys, passwords or the live inventory file. No real customer data, private keys, credentials or hidden exercise answers belong in this portfolio repository. The three playbooks were copied from `mds-admin-01`; SHA-256 checksums matched the source files. `lab-assets/mds-induction.zip` is the unchanged synthetic provisioning archive copied from Windows to the admin VM over SSH/SCP and used to seed the fictional vulnerable workload. Its SHA-256 is recorded beside it. Because it deliberately creates insecure lab state, use it only with the isolated, disposable VirtualBox setup described in the walkthrough; do not run it against a real server.
 
 
 ## Run the playbooks
