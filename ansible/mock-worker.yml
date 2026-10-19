@@ -1,0 +1,123 @@
+---
+- name: Run and verify the Meridian mock reporting worker
+  hosts: mds-ubuntu-server-01
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: Confirm the intended target
+      ansible.builtin.assert:
+        that:
+          - ansible_host == '192.168.77.10'
+          - (ansible_connection | default('ssh')) == 'ssh'
+      tags: [always]
+
+    - name: Install the synthetic reporting worker
+      ansible.builtin.copy:
+        dest: /usr/local/bin/mds-reports-mock
+        content: |
+          #!/usr/bin/python3
+          from datetime import datetime, timezone
+          from pathlib import Path
+          import os
+          import time
+
+          report = Path("/srv/mds/archive/mock-report.txt")
+          log = Path("/srv/mds/logs/application.log")
+
+          while True:
+              timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+              report.write_text(
+                  f"LAB MOCK REPORT - synthetic data only - generated {timestamp}\n",
+                  encoding="utf-8",
+              )
+              os.chmod(report, 0o600)
+
+              with log.open("a", encoding="utf-8") as log_file:
+                  log_file.write(f"{timestamp} mock report updated\n")
+
+              time.sleep(60)
+        owner: root
+        group: root
+        mode: '0755'
+      notify: Restart the reporting worker
+
+    - name: Configure systemd to run the mock worker
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/mds-reports.service.d/mock-worker.conf
+        content: |
+          [Service]
+          ExecStart=
+          ExecStart=/usr/local/bin/mds-reports-mock
+        owner: root
+        group: root
+        mode: '0644'
+        backup: true
+      notify: Restart the reporting worker
+
+    - name: Apply the worker configuration before checking its output
+      ansible.builtin.meta: flush_handlers
+
+    - name: Wait for the mock report to be created
+      ansible.builtin.wait_for:
+        path: /srv/mds/archive/mock-report.txt
+        timeout: 30
+      changed_when: false
+
+    - name: Read the synthetic report for verification
+      ansible.builtin.command:
+        argv:
+          - cat
+          - /srv/mds/archive/mock-report.txt
+      register: mock_report
+      changed_when: false
+
+    - name: Show the synthetic report result
+      ansible.builtin.debug:
+        msg: "{{ mock_report.stdout }}"
+
+    - name: Verify the reporting service is active
+      ansible.builtin.command:
+        argv:
+          - systemctl
+          - is-active
+          - mds-reports.service
+      register: service_status
+      failed_when: service_status.stdout != 'active'
+      changed_when: false
+
+    - name: Verify ordinary admin cannot read the mock report
+      ansible.builtin.command:
+        argv:
+          - runuser
+          - -u
+          - mdsadmin
+          - --
+          - test
+          - -r
+          - /srv/mds/archive/mock-report.txt
+      register: admin_report_read
+      failed_when: admin_report_read.rc != 1
+      changed_when: false
+
+    - name: Verify ordinary admin cannot write the mock report
+      ansible.builtin.command:
+        argv:
+          - runuser
+          - -u
+          - mdsadmin
+          - --
+          - test
+          - -w
+          - /srv/mds/archive/mock-report.txt
+      register: admin_report_write
+      failed_when: admin_report_write.rc != 1
+      changed_when: false
+
+  handlers:
+    - name: Restart the reporting worker
+      ansible.builtin.systemd_service:
+        name: mds-reports.service
+        daemon_reload: true
+        state: restarted
+
