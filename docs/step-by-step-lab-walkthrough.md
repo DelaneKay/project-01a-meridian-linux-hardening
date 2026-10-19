@@ -212,7 +212,7 @@ The audit completed and its log recorded a warning about `/etc/sudoers.d`: it wa
 A later search checked ownership and group/world write bits throughout the Lynis tree:
 
 ```sh
-sudo find /opt/lynis-3.1.7 \\( ! -user root -o ! -group root -o -perm /022 \\) -print
+sudo find /opt/lynis-3.1.7 \( ! -user root -o ! -group root -o -perm /022 \) -print
 ```
 
 It listed language symlinks. We inspected them with:
@@ -224,7 +224,7 @@ ls -l /opt/lynis-3.1.7/db/languages/{en-GB,nl-BE,de-AT,br,nl-NL,en-US}
 The output showed links to the shared language files (for example, `en-GB -> en`). Symbolic links commonly display mode `777`; that display does not mean the link itself can be made writable in the same way as a regular file. For a follow-up check specifically of regular files, use:
 
 ```sh
-sudo find /opt/lynis-3.1.7 -type f \\( ! -user root -o ! -group root -o -perm /022 \\) -print
+sudo find /opt/lynis-3.1.7 -type f \( ! -user root -o ! -group root -o -perm /022 \) -print
 ```
 
 That final `-type f` form is a clearer diagnostic refinement; it was not part of the recorded terminal output.
