@@ -26,7 +26,9 @@ The written adapter record documents the settings, but does not establish guest 
 
 ## The scenario and the role of AI
 
-The VirtualBox adapter settings I recorded show admin Adapters 2 and 3 enabled; Adapter 4 was not documented. At least two enabled adapters are recorded, so the transferred ZIP cannot be treated as verified proof of how the observed vulnerable state was created.
+The scenario's intended unsafe setup came from `mds-induction.zip`, an AI-assisted package copied from Windows to the admin VM over SSH/SCP. Its documented `lab.py deploy` workflow and workload assets, including `assets/session.py`, were designed to create synthetic records and a deliberately permissive reporting service. The risk being investigated was that generated deployment material could leave insecure file permissions and service settings if run without review.
+
+The archive's `START-HERE.md` says it had not been deployed, and its one-adapter preflight conflicts with the saved VirtualBox adapter settings. So the package explains the scenario's intended compromise path, but does not prove that it created the exact state observed on the target. This was a controlled misconfiguration exercise with synthetic data, not evidence of a real attacker intrusion.
 
 AI also helped draft and explain parts of the remediation. I checked the commands, permissions, service state, and Ansible results in the lab. The evidence below distinguishes what was observed from what is merely planned.
 
