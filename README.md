@@ -24,6 +24,12 @@ I built and ran this entire lab locally on my laptop using VirtualBox for the **
 
 The written adapter record documents the settings, but does not establish guest routing or complete egress isolation; all addresses are lab-only.
 
+## Lab topology diagram
+
+![Topology diagram of the Windows workstation, admin VM, and target VM](docs/lab-topology.svg)
+
+The editable [draw.io source](docs/lab-topology.drawio) records the SSH/SCP and Ansible paths, VirtualBox interface names, and limits of the saved adapter information.
+
 ## The scenario and the role of AI
 
 The VirtualBox adapter settings I recorded show admin Adapters 2 and 3 enabled; Adapter 4 was not documented. At least two enabled adapters are recorded, so the transferred ZIP cannot be treated as verified proof of how the observed vulnerable state was created.
@@ -76,6 +82,8 @@ The [project journey](docs/step-by-step-lab-walkthrough.md) is a first-person ac
 ```text
 README.md                         This case study, architecture and run instructions
 .gitignore                        Excludes live inventory and local credential files
+docs/lab-topology.drawio        Editable draw.io lab topology
+docs/lab-topology.svg            Diagram preview used in this README
 docs/findings-and-remediation.md  Evidence-to-control record
 docs/step-by-step-lab-walkthrough.md First-person investigation, decisions, commands and verification
 evidence/                         Verification output, mock-worker screenshots and network notes
