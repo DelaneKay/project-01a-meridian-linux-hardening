@@ -8,7 +8,7 @@ This file summarizes sanitized outputs from successful lab runs and read-only ch
 - Ansible control node: Ansible Core 2.20.1, Python 3.14.4
 - Target Python interpreter discovered by Ansible: `/usr/bin/python3.14`
 - Assessment tool: Lynis 3.1.7
-- Topology: Windows laptop and WSL → `mds-admin-01` Ansible control node → isolated VirtualBox network → `mds-ubuntu-server-01` target. Windows PowerShell/OpenSSH copied the induction ZIP to the admin VM; WSL handled the Lynis transfer.
+- Topology: Windows PowerShell and WSL reached `mds-admin-01` through its host-only adapter (`192.168.56.101`). PowerShell/OpenSSH copied the induction ZIP; WSL handled the Lynis transfer. The admin VM also joined the `mds-sec-lab` Internal Network (`192.168.77.20`), which connected to the target (`192.168.77.10`). NAT was disabled on both VMs. See [VirtualBox network settings](virtualbox-network.md).
 
 ## After `harden.yml`
 

@@ -6,7 +6,7 @@ This document records my Project 1a journey: how I investigated an intentionally
 
 Meridian Digital Services is a fictional company. In the scenario, its reporting worker reads customer records and creates reports, logs, and exports. The target was an already running Ubuntu server with that workload installed. I was not building a clean server from scratch.
 
-An AI-assisted induction package seeded the target with deliberately unsafe settings and left the specific findings for me to investigate. The exercise models a DevSecOps risk: generated setup code can leave a system exposed when nobody reviews the resulting configuration. This was a controlled simulation on my laptop in VirtualBox, not a real breach. The records and report output were synthetic.
+An AI-assisted induction package was prepared to seed deliberately unsafe settings and leave the specific findings for me to investigate. The exercise models a DevSecOps risk: generated setup code can leave a system exposed when nobody reviews the resulting configuration. The archive I transferred says it had not been deployed, and its one-adapter preflight conflicts with the saved admin-VM settings. The evidence therefore does not establish that this exact ZIP seeded the target. I investigated the unsafe state observed on the server; its original provisioning command or package version is not preserved. This was a controlled simulation on my laptop in VirtualBox, not a real breach. The records and report output were synthetic.
 
 The main problem was that `customers.csv` had mode `0666`, so local users who could traverse its parent directories could change its contents. The logs and archive also allowed more access than the reporting worker needed. The service used a generic identity and lacked systemd restrictions. I wanted the reporting account to keep the access it needed while ordinary local accounts lost access. An administrator still needed an override through authorized sudo or root access.
 
@@ -18,21 +18,24 @@ I ran two Ubuntu Server virtual machines locally in VirtualBox. One was the admi
 
 ~~~text
 Windows laptop
-├── Windows PowerShell / OpenSSH ── SSH/SCP ──> mds-admin-01
-├── WSL ─────────────────────────── SSH/SCP ──> mds-admin-01
-└── VirtualBox
+├── Windows PowerShell / OpenSSH ── SCP induction ZIP ──┐
+├── WSL / OpenSSH ──────────────── Lynis transfer ──────┤
+└── VirtualBox                                        ↓
     ├── mds-admin-01: Ansible control server
-    └── mds-ubuntu-server-01: target reporting server
-             <── isolated lab network ──>
+    │   ├── Adapter 1: NAT disabled
+    │   ├── Adapter 2: Host-only, 192.168.56.101
+    │   └── Adapter 3: Internal Network "mds-sec-lab", 192.168.77.20
+    └── mds-ubuntu-server-01: target
+        ├── Adapter 1: NAT disabled
+        └── Adapter 2: Internal Network "mds-sec-lab", 192.168.77.10
 ~~~
 
-This arrangement let me keep the automation on a separate control server and reach the target through SSH. Running both servers locally in VirtualBox kept the deliberately weak workload within a lab I controlled. It also made it possible to investigate the target from a separate machine, closer to how an operations team manages servers.
+The [VirtualBox network evidence](../evidence/virtualbox-network.md) contains the screenshots behind this layout. The admin VM used its host-only adapter as the management path from Windows/WSL; its `mds-sec-lab` adapter connected to the target. The target was attached only to the same Internal Network. The NAT adapters were disabled on both VMs. The project records the host-only admin address as `192.168.56.101`, the internal control-node address as `192.168.77.20`, and the target as `192.168.77.10`. This explains the two admin addresses: the host-only interface handled laptop management, while the internal interface carried traffic to the target.
 
-The terminal record shows the admin management address `192.168.56.101` and target address `192.168.77.10`. The induction package's preflight notes expect the control node at `192.168.77.20`. Those addresses describe distinct recorded network roles, but the exact VirtualBox adapter setup and any network transition were not preserved. I have left this discrepancy visible rather than inventing adapter details.
+The screenshots establish VirtualBox adapter settings, but not guest routes or IP forwarding. The induction package's preflight was designed to check the control node's addresses, routes, and forwarding state. Its isolation notes also called for disabled target shared folders, shared clipboard, and drag-and-drop. The full preflight output and exact manual network-check commands were not preserved.
 
-The induction package's preflight was designed to check the control node's addresses, routes, and forwarding state before deployment. Its isolation notes called for a VirtualBox Internal Network, no default route or IP forwarding, and disabled target shared folders, shared clipboard, and drag-and-drop. Those checks and settings reduced the chance that the intentionally weak service or synthetic data could affect anything outside the lab. The full preflight output and the exact manual commands used to inspect network state were not preserved.
-
-The exact VirtualBox mouse-click sequence was not captured. The isolation description above combines the package's recorded design with the addresses visible in the project history.
+The package's single-adapter assumption conflicts with the screenshots: the admin VM had two enabled adapters, host-only and internal. If this was the active configuration when the package was run, its preflight would have stopped before calling Ansible. I record that conflict rather than claim the package accepted this topology.
+The screenshots preserve the adapter configuration; they do not show every VirtualBox setting or prove guest-level routing and forwarding state.
 
 ## 2. I established SSH access and transferred the induction package
 
@@ -52,9 +55,9 @@ The file's SHA-256 fingerprint was:
 f23cb7326c3fb42868286a72705d7f25cef80cb896d8ff1739193d94f0e18c07
 ~~~
 
-I used the hash to identify the exact archive and check that the copy had not changed. The same archive is preserved in this repository at [lab-assets/mds-induction.zip](../lab-assets/mds-induction.zip), with its fingerprint in [lab-assets/mds-induction.sha256](../lab-assets/mds-induction.sha256). Its `START-HERE.md` contains a stale sentence saying the package had not been deployed; the archive is kept unchanged so the recorded fingerprint remains valid.
+I used the hash to identify the exact archive and check that the copy had not changed. The same archive is preserved in this repository at [lab-assets/mds-induction.zip](../lab-assets/mds-induction.zip), with its fingerprint in [lab-assets/mds-induction.sha256](../lab-assets/mds-induction.sha256). Its `START-HERE.md` says the package had not been deployed. I preserve the archive unchanged as the file transferred to the admin VM, not as proof that it provisioned the workload observed on the target.
 
-The package contains `lab.py`, `session.json`, and `assets/session.py). Its deployment asset seeds the fictional records, logs, archive, and deliberately permissive reporting service that formed the investigation scenario. The package documented these stages on the admin server:
+The package contains `lab.py`, `session.json`, and `assets/session.py`. Its deployment asset is designed to seed fictional records, logs, archives, and a deliberately permissive reporting service for the investigation scenario. The package documented these stages on the admin server:
 
 ~~~sh
 python3 lab.py preflight --ask-become-pass
@@ -62,9 +65,9 @@ python3 lab.py deploy --ask-become-pass
 python3 lab.py verify --ask-become-pass
 ~~~
 
-Preflight checked control-node identity, Ansible and inventory details, network state, and target SSH/sudo readiness. Deploy seeded and verified the synthetic starting workload through Ansible, after checking the lab isolation. Verify checked the expected initial state. These are the package's documented commands; the complete original terminal output for each seed stage was not retained in the conversation, so I distinguish them from the remediation output that was captured.
+The package documentation describes preflight checks for control-node identity, Ansible and inventory details, network state, and target SSH/sudo readiness. Its deploy mode is intended to seed and verify the synthetic starting workload through Ansible; verify checks the expected initial state. These are documented package commands, not confirmed deployment output from my target. The complete output for a successful seed stage was not retained.
 
-The package's isolation assumptions and the recorded `192.168.56.101` transfer address do not line up perfectly with its expected `192.168.77.20` control-node address. This remains a replication caveat in my record: the active VirtualBox network state should be understood before reusing the package.
+The package also describes a pre-deployment VirtualBox snapshot named `01-Pre-Vulnerable-Lab` and a rollback procedure. These remain package instructions, not evidence that deployment occurred. The adapter mismatch and deployment uncertainty are recorded in the preceding section.
 
 ## 3. I moved Lynis into the investigation
 

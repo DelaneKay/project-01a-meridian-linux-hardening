@@ -10,12 +10,14 @@ Meridian Digital Services is fictional. This project documents a reactive DevSec
 
 ```text
 My Windows laptop
-├── Windows PowerShell / OpenSSH ── induction ZIP via SCP ──> mds-admin-01
-├── WSL / OpenSSH ──────────────── Lynis transfer and SSH ─> mds-admin-01
-└── VirtualBox
+├── Windows PowerShell / OpenSSH ── SCP induction ZIP ──┐
+├── WSL / OpenSSH ──────────────── Lynis transfer ──────┤
+└── VirtualBox                                        ↓
     ├── mds-admin-01: Ansible control node
-    └── isolated lab network ── SSH ──> mds-ubuntu-server-01
-                                      target reporting server
+    │   ├── Host-only adapter: 192.168.56.101
+    │   └── Internal Network "mds-sec-lab": 192.168.77.20
+    └── mds-ubuntu-server-01: target
+        └── Internal Network "mds-sec-lab": 192.168.77.10
 ```
 
 I built and ran this entire lab locally on my laptop using VirtualBox for the **two Ubuntu server VMs**: the admin server and the target. WSL ran on the same Windows laptop and was used for the Lynis transfer and SSH work; it was not a third VM. The induction ZIP was copied from the Windows Downloads folder to the admin VM using Windows PowerShell's OpenSSH `scp` command. The admin VM held the Ansible inventory and ran the playbooks against the target VM. The target hosted the reporting service and synthetic data.
@@ -24,7 +26,7 @@ This separation mirrors a common operational pattern: engineers work from a work
 
 ## The scenario and the role of AI
 
-The target was **not a fresh server awaiting a standard build**. An AI-assisted lab provisioning script created a deliberately insecure reporting workload and concealed the planted findings during the blind assessment. My task was to investigate the resulting state rather than follow a supplied list of weaknesses. This was a controlled simulation of the risk of accepting generated infrastructure changes without reviewing their effect; it was **not evidence of a real-world intrusion or malicious AI attack**.
+The target was **not a fresh server awaiting a standard build**. The exercise centered on a deliberately insecure reporting workload whose planted findings were withheld during the blind assessment. I copied an AI-assisted induction package from Windows to the admin server. Its own `START-HERE.md` says it had not yet been deployed, and its preflight requires exactly one active adapter on the admin VM. The VirtualBox screenshots in this repository show two enabled admin adapters, so the transferred ZIP cannot be treated as verified proof of how the observed vulnerable state was created. I investigated the state that was present on the target; the exact provisioning command or package version that placed it there is not established by the saved evidence. This was a controlled simulation, not evidence of a real-world intrusion or malicious AI attack.
 
 AI also helped draft and explain parts of the remediation. I checked the commands, permissions, service state, and Ansible results in the lab. The evidence below distinguishes what was observed from what is merely planned.
 
@@ -62,11 +64,12 @@ The second run checked the report and access controls again with `changed=0`, sh
 
 - [Hardening verification record](evidence/hardening-verification.md): captured lab versions, current service properties, file permissions, and successful playbook summaries.
 - [Findings and remediation record](docs/findings-and-remediation.md): evidence, risk, control, verification, and scope decisions for each finding.
+- [VirtualBox network settings](evidence/virtualbox-network.md): screenshots and explanation of the host-only and internal-network layout.
 - The published playbooks were copied from `mds-admin-01` as separate YAML files after their SHA-256 checksums were matched. The earlier preflight-only draft remains outside this repository.
 
 ## Step-by-step walkthrough
 
-The [project journey](docs/step-by-step-lab-walkthrough.md) is a first-person account of how I set up the local VirtualBox lab, transferred the induction ZIP, investigated the existing workload with Lynis and Linux tools, applied Ansible changes, and checked the results. It explains why I took each step and distinguishes captured commands from details that were reconstructed or not preserved.
+The [project journey](docs/step-by-step-lab-walkthrough.md) is a first-person account of how I set up the local VirtualBox lab, transferred the induction ZIP, investigated the existing workload with Lynis and Linux tools, applied Ansible changes, and checked the results. It explains why I took each step, distinguishes captured commands from details that were reconstructed or not preserved, and notes that the transferred ZIP is not verified as the package that seeded the target.
 
 ## Repository map
 
@@ -75,8 +78,8 @@ README.md                         This case study, architecture and run instruct
 .gitignore                        Excludes live inventory and local credential files
 docs/findings-and-remediation.md  Evidence-to-control record
 docs/step-by-step-lab-walkthrough.md First-person investigation, decisions, commands and verification
-evidence/                         Sanitized verification output and two screenshots
-lab-assets/mds-induction.zip       AI-generated synthetic workload provisioning archive
+evidence/                         Verification output, mock-worker screenshots and VirtualBox settings
+lab-assets/mds-induction.zip       AI-assisted induction archive copied to the admin VM
 lab-assets/mds-induction.sha256   SHA-256 checksum for the unchanged archive
 ansible/                          Final playbooks copied from the admin server
   harden.yml                      Reporting identity, systemd and customer file
@@ -85,12 +88,12 @@ ansible/                          Final playbooks copied from the admin server
   inventory/hosts.ini.example     Safe inventory example without credentials
 ```
 
-The inventory example uses placeholders rather than keys, passwords or the live inventory file. No real customer data, private keys or credentials belong in this portfolio repository. The three playbooks were copied from `mds-admin-01`; SHA-256 checksums matched the source files. `lab-assets/mds-induction.zip` is the unchanged synthetic provisioning archive copied from Windows to the admin VM over SSH/SCP and used to seed the fictional vulnerable workload. Its SHA-256 is recorded beside it. Because it deliberately creates insecure lab state, use it only with the isolated, disposable VirtualBox setup described in the walkthrough; do not run it against a real server.
+The inventory example uses placeholders rather than keys, passwords or the live inventory file. No real customer data, private keys or credentials belong in this portfolio repository. The three playbooks were copied from `mds-admin-01`; SHA-256 checksums matched the source files. `lab-assets/mds-induction.zip` is the unchanged induction archive copied from Windows to the admin VM over SSH/SCP. Its SHA-256 is recorded beside it. The archive says it had not been deployed, and its one-adapter preflight conflicts with the saved admin settings, so this repository does not claim that it seeded the target. Its deploy mode is designed to create insecure lab state; treat it as a lab-only artifact and do not run it against a real server.
 
 
 ## Run the playbooks
 
-The remediation playbooks expect the reporting service and synthetic data to exist on the target. The repository includes the same induction archive used in the lab to seed that workload; its transfer and role are described in [my project journey](docs/step-by-step-lab-walkthrough.md#2-i-established-ssh-access-and-transferred-the-induction-package). The repository does not create VirtualBox VMs or configure their adapters or SSH access. To review or rerun the remediation, I used the `ansible` directory on the admin/control node and kept the live inventory and private key out of Git.
+The remediation playbooks expect the reporting service and synthetic data to exist on the target. The repository preserves the induction ZIP that I copied to the admin VM, but the archive says it was not deployed, and its preflight assumptions conflict with the saved VirtualBox adapter settings. The [project journey](docs/step-by-step-lab-walkthrough.md#2-i-established-ssh-access-and-transferred-the-induction-package) records that uncertainty. The repository does not create VirtualBox VMs or configure their adapters or SSH access. To review or rerun the remediation, I used the `ansible` directory on the admin/control node and kept the live inventory and private key out of Git.
 
 Run the playbooks in this order:
 
