@@ -28,7 +28,7 @@
 
 **Evidence before remediation:** The log directory was root-owned mode `0755`; `application.log` was root-owned mode `0666`; the archive directory was root-owned mode `0777`; and `export.csv` was root-owned mode `0644`.
 
-**Risk:** Other local accounts could read customer exports and, could alter the world-writable log. The world-writable archive directory also allowed creation or removal of entries where directory traversal was permitted.
+**Risk:** Other local accounts could read the customer export and alter the world-writable log. The world-writable archive directory also allowed creation or removal of entries where directory traversal was permitted.
 
 **Control applied:** `data-files.yml` set `/srv/mds/logs` and `/srv/mds/archive` to `mds-reports:mds-reports` mode `0700`; it set `application.log` and `export.csv` to that owner and mode `0600`. A separate systemd drop-in allowed writes to the two required paths under `ProtectSystem=strict`.
 
