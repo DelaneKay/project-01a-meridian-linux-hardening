@@ -8,7 +8,7 @@ This file summarizes sanitized outputs from successful lab runs and read-only ch
 - Ansible control node: Ansible Core 2.20.1, Python 3.14.4
 - Target Python interpreter discovered by Ansible: `/usr/bin/python3.14`
 - Assessment tool: Lynis 3.1.7
-- Topology: Windows PowerShell and WSL reached mds-admin-01 through its host-only adapter (192.168.56.101). PowerShell/OpenSSH copied the induction ZIP; WSL handled the Lynis transfer. The screenshots show admin Adapter 3 and target Adapter 2 on mds-sec-lab; admin Adapter 1 and target Adapter 1 (NAT) are disabled. The target inventory uses 192.168.77.10. The archive expects the control node at 192.168.77.20, but that guest address is not confirmed by the adapter screenshots. Target Adapters 3 and 4 are not shown. See [VirtualBox network settings](virtualbox-network.md).
+The recorded VirtualBox settings show admin Adapter 3 and target Adapter 2 on mds-sec-lab; admin Adapter 1 and target Adapter 1 (NAT) are disabled. The target inventory uses 192.168.77.10. The archive expects the control node at 192.168.77.20, but that guest address is not confirmed by the adapter record. Target Adapters 3 and 4 are not documented. See [VirtualBox adapter notes](virtualbox-network.md).
 
 ## After `harden.yml`
 

@@ -30,12 +30,12 @@ Windows laptop
         └── Adapter 2: Internal Network mds-sec-lab (target inventory address: .77.10)
 ~~~
 
-The [VirtualBox network evidence](../evidence/virtualbox-network.md) contains the screenshots behind this layout. They show the admin VM using Adapter 2 as a host-only adapter and Adapter 3 on mds-sec-lab; Adapter 1 (NAT) is disabled. The host-only address used to reach the admin was 192.168.56.101. The target screenshots show Adapter 1 (NAT) disabled and Adapter 2 on the same internal network; they do not show target Adapters 3 or 4, so I cannot claim those were disabled. The target address 192.168.77.10 is in the Ansible inventory. The value 192.168.77.20 appears as the control-node address expected by the induction archive, but the VirtualBox screenshots do not verify that guest address.
+The [VirtualBox adapter notes](../evidence/virtualbox-network.md) record the settings behind this layout. They show the admin VM using Adapter 2 as a host-only adapter and Adapter 3 on mds-sec-lab; Adapter 1 (NAT) is disabled. The host-only address used to reach the admin was 192.168.56.101. The target settings record Adapter 1 (NAT) disabled and Adapter 2 on the same internal network; Adapters 3 or 4 were not documented, so I cannot claim those were disabled. The target address 192.168.77.10 is in the Ansible inventory. The value 192.168.77.20 appears as the control-node address expected by the induction archive, but the adapter record does not verify that guest address.
 
-The screenshots establish adapter attachments, but not guest routes, IP forwarding, or the state of VirtualBox shared folders, clipboard, and drag-and-drop. The induction package preflight was designed to check network state; the full preflight output and exact manual network-check commands were not preserved.
+The written adapter record establishes the displayed adapter attachments, but not guest routes, IP forwarding, or the state of VirtualBox shared folders, clipboard, and drag-and-drop. The induction package preflight was designed to check network state; the full preflight output and exact manual network-check commands were not preserved.
 
-The package's single-adapter assumption conflicts with the screenshots: admin Adapters 2 and 3 are visibly enabled, while Adapter 4 is not shown. If these settings were active when the package was run, at least two active adapters would conflict with its one-adapter preflight, which would stop before calling Ansible. I record that conflict rather than claim the package accepted this topology.
-The screenshots preserve only the displayed adapter settings; they do not show every adapter or VirtualBox setting, or prove guest-level routing and forwarding state.
+The package's single-adapter assumption conflicts with the recorded settings
+The adapter record covers only the settings captured; it does not establish every adapter or VirtualBox setting, or prove guest-level routing and forwarding state.
 
 ## 2. I established SSH access and transferred the induction package
 

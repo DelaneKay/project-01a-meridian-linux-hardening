@@ -22,11 +22,11 @@ My Windows laptop
 
 I built and ran this entire lab locally on my laptop using VirtualBox for the **two Ubuntu server VMs**: the admin server and the target. WSL ran on the same Windows laptop and was used for the Lynis transfer and SSH work; it was not a third VM. The induction ZIP was copied from the Windows Downloads folder to the admin VM using Windows PowerShell's OpenSSH `scp` command. The admin VM held the Ansible inventory and ran the playbooks against the target VM. The target hosted the reporting service and synthetic data.
 
-This topology placed target-side traffic on a named VM-to-VM segment, while the admin VM also had a host-only management adapter. The screenshots document adapter attachments but do not establish guest routing or complete egress isolation; all addresses are lab-only.
+The written adapter record documents the settings, but does not establish guest routing or complete egress isolation; all addresses are lab-only.
 
 ## The scenario and the role of AI
 
-The VirtualBox screenshots show admin Adapters 2 and 3 enabled; Adapter 4 is not shown. At least two enabled adapters are visible, so the transferred ZIP cannot be treated as verified proof of how the observed vulnerable state was created.
+The VirtualBox adapter settings I recorded show admin Adapters 2 and 3 enabled; Adapter 4 was not documented. At least two enabled adapters are recorded, so the transferred ZIP cannot be treated as verified proof of how the observed vulnerable state was created.
 
 AI also helped draft and explain parts of the remediation. I checked the commands, permissions, service state, and Ansible results in the lab. The evidence below distinguishes what was observed from what is merely planned.
 
@@ -64,7 +64,7 @@ The second run checked the report and access controls again with `changed=0`, sh
 
 - [Hardening verification record](evidence/hardening-verification.md): captured lab versions, current service properties, file permissions, and successful playbook summaries.
 - [Findings and remediation record](docs/findings-and-remediation.md): evidence, risk, control, verification, and scope decisions for each finding.
-- [VirtualBox network settings](evidence/virtualbox-network.md): screenshots and explanation of the host-only and internal-network layout.
+[VirtualBox network settings](evidence/virtualbox-network.md): written summary of the adapter topology and its evidence limits.
 - The published playbooks were copied from `mds-admin-01` as separate YAML files after their SHA-256 checksums were matched. The earlier preflight-only draft remains outside this repository.
 
 ## Step-by-step walkthrough
@@ -78,7 +78,7 @@ README.md                         This case study, architecture and run instruct
 .gitignore                        Excludes live inventory and local credential files
 docs/findings-and-remediation.md  Evidence-to-control record
 docs/step-by-step-lab-walkthrough.md First-person investigation, decisions, commands and verification
-evidence/                         Verification output, mock-worker screenshots and VirtualBox settings
+evidence/                         Verification output, mock-worker screenshots and network notes
 lab-assets/mds-induction.zip       AI-assisted induction archive copied to the admin VM
 lab-assets/mds-induction.sha256   SHA-256 checksum for the unchanged archive
 ansible/                          Final playbooks copied from the admin server
