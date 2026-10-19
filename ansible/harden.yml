@@ -1,0 +1,125 @@
+---
+- name: Create the Meridian reporting service account
+  hosts: mds-ubuntu-server-01
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: Confirm the intended target
+      ansible.builtin.assert:
+        that:
+          - ansible_host == '192.168.77.10'
+          - (ansible_connection | default('ssh')) == 'ssh'
+      tags: [always]
+
+    - name: Create a dedicated non-login service account
+      ansible.builtin.user:
+        name: mds-reports
+        system: true
+        create_home: false
+        home: /nonexistent
+        shell: /usr/sbin/nologin
+        state: present
+      tags: [service_identity]
+
+    - name: Create the reporting service override directory
+      ansible.builtin.file:
+        path: /etc/systemd/system/mds-reports.service.d
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      tags: [service_runtime]
+
+    - name: Run the reporting worker as its dedicated account
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/mds-reports.service.d/identity.conf
+        content: |
+          [Service]
+          User=mds-reports
+          Group=mds-reports
+          NoNewPrivileges=true
+          UMask=0027
+          PrivateTmp=true
+          ProtectSystem=strict
+          ProtectHome=true
+          ReadWritePaths=/srv/mds/records
+        owner: root
+        group: root
+        mode: '0644'
+        backup: true
+      notify: Reload and restart the reporting worker
+      tags: [service_runtime]
+
+    - name: Restrict customer record access to the reporting service
+      ansible.builtin.file:
+        path: /srv/mds/records/customers.csv
+        state: file
+        owner: mds-reports
+        group: mds-reports
+        mode: '0600'
+      tags: [data_access]
+
+    - name: Verify reporting account can read customer records
+      ansible.builtin.command:
+        argv:
+          - runuser
+          - -u
+          - mds-reports
+          - --
+          - test
+          - -r
+          - /srv/mds/records/customers.csv
+      changed_when: false
+      tags: [data_access]
+
+    - name: Verify reporting account can update customer records
+      ansible.builtin.command:
+        argv:
+          - runuser
+          - -u
+          - mds-reports
+          - --
+          - test
+          - -w
+          - /srv/mds/records/customers.csv
+      changed_when: false
+      tags: [data_access]
+
+    - name: Verify ordinary admin account cannot read customer records
+      ansible.builtin.command:
+        argv:
+          - runuser
+          - -u
+          - mdsadmin
+          - --
+          - test
+          - -r
+          - /srv/mds/records/customers.csv
+      register: mdsadmin_customer_read
+      failed_when: mdsadmin_customer_read.rc != 1
+      changed_when: false
+      tags: [data_access]
+
+    - name: Verify ordinary admin account cannot update customer records
+      ansible.builtin.command:
+        argv:
+          - runuser
+          - -u
+          - mdsadmin
+          - --
+          - test
+          - -w
+          - /srv/mds/records/customers.csv
+      register: mdsadmin_customer_write
+      failed_when: mdsadmin_customer_write.rc != 1
+      changed_when: false
+      tags: [data_access]
+
+  handlers:
+    - name: Reload and restart the reporting worker
+      ansible.builtin.systemd_service:
+        name: mds-reports.service
+        daemon_reload: true
+        state: restarted
+
