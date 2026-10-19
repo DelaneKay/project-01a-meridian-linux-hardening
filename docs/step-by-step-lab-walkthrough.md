@@ -1,120 +1,67 @@
-# Replicate the Meridian Linux hardening exercise
+# My Meridian Linux hardening investigation
 
-Follow the stages in order. Each block names the machine where it runs; the explanation beneath it covers every command. Related commands are grouped to reduce repetition. Check the result before moving on.
+This document records my Project 1a journey: how I investigated an intentionally vulnerable reporting server, what I changed with Ansible, and how I checked that the reporting workload still worked. It is a retrospective account, not a set of instructions for a reader to follow. Command blocks show commands from the work where they were captured; reconstructed examples are identified as such.
 
-This is a streamlined replay, not a verbatim shell history. Added replication instructions are identified below; original screenshots remain evidence of our original runs.
+## The situation at Meridian Digital Services
 
-## Scenario: the Meridian reporting server
+Meridian Digital Services is a fictional company. In the scenario, its reporting worker reads customer records and creates reports, logs, and exports. The target was an already running Ubuntu server with that workload installed. I was not building a clean server from scratch.
 
-Meridian Digital Services is a fictional company whose reporting worker reads customer records and creates reports, logs, and exports. For this portfolio lab, the target was an already running Ubuntu server with that reporting workload installed. It was not a clean server build.
+An AI-assisted induction package seeded the target with deliberately unsafe settings and left the specific findings for me to investigate. The exercise models a DevSecOps risk: generated setup code can leave a system exposed when nobody reviews the resulting configuration. This was a controlled simulation on my laptop in VirtualBox, not a real breach. The records and report output were synthetic.
 
-An AI-assisted induction package was used to seed the target with a deliberately unsafe starting state, while leaving the specific planted issues for the learner to investigate. This models a realistic DevSecOps concern: automation or generated setup code can leave a system insecure if nobody checks the resulting configuration. It was a controlled simulation in VirtualBox, not a real breach, and all records and report output were synthetic.
+The main problem was that `customers.csv` had mode `0666`, so local users who could traverse its parent directories could change its contents. The logs and archive also allowed more access than the reporting worker needed. The service used a generic identity and lacked systemd restrictions. I wanted the reporting account to keep the access it needed while ordinary local accounts lost access. An administrator still needed an override through authorized sudo or root access.
 
-The investigation found that the customer CSV was mode `0666`, allowing local users with access through its parent directories to change its contents. Log and archive paths also had broader permissions than the reporting worker needed. The service ran under a generic account and lacked systemd restrictions. The goal was to let the reporting worker do its job while restricting routine local access and retaining an administrator's ability to override access through authorized sudo/root administration.
+That goal shaped the order of my work: I isolated the lab, transferred the induction package, established a baseline, investigated actual permissions and service settings, applied focused Ansible changes, and verified both the service and the denied access paths.
 
-That is why the walkthrough begins by isolating the two VirtualBox servers, then transfers and checks the induction archive, records the original system state with Lynis and direct Linux checks, and only then applies Ansible changes. The final mock-worker run checks that the service still produces synthetic output and that ordinary-account access is denied; a second Ansible run checks that the changes are repeatable. Lynis helped guide investigation, while the direct checks and successful playbook runs provide the evidence for the specific controls.
+## 1. I built the lab on my Windows laptop
 
-
-## 1. Build the local VirtualBox lab and establish SSH access
-
-This project was run on one Windows laptop. WSL was the SSH client and two Ubuntu Server VMs ran locally in VirtualBox. The admin VM managed the target; the target was on the isolated lab network.
+I ran two Ubuntu Server virtual machines locally in VirtualBox. One was the admin/control server, where I kept Ansible and ran playbooks. The other was the target reporting server. WSL was also available on the same laptop and I used it for SSH and the Lynis transfer; it was not a third VM. The induction ZIP itself was copied from Windows PowerShell, as shown by the command captured in the project conversation.
 
 ~~~text
 Windows laptop
-├── WSL: SSH client
-│   └── management connection to mds-admin-01 (192.168.56.101)
+├── Windows PowerShell / OpenSSH ── SSH/SCP ──> mds-admin-01
+├── WSL ─────────────────────────── SSH/SCP ──> mds-admin-01
 └── VirtualBox
-    ├── mds-admin-01: Ansible control node
-    │   ├── management side reachable from WSL
-    │   └── lab side connected to the isolated internal network
-    └── mds-ubuntu-server-01: target (192.168.77.10)
-        └── connected to the same isolated internal network
+    ├── mds-admin-01: Ansible control server
+    └── mds-ubuntu-server-01: target reporting server
+             <── isolated lab network ──>
 ~~~
 
-The addresses show two paths: WSL reached the admin VM at 192.168.56.101, and Ansible on the admin VM reached the target at 192.168.77.10. The target was managed through the admin VM. This kept the workload in a local lab and separated the management entry point from the server being assessed.
+This arrangement let me keep the automation on a separate control server and reach the target through SSH. Running both servers locally in VirtualBox kept the deliberately weak workload within a lab I controlled. It also made it possible to investigate the target from a separate machine, closer to how an operations team manages servers.
 
-### Set the VirtualBox network
+The terminal record shows the admin management address `192.168.56.101` and target address `192.168.77.10`. The induction package's preflight notes expect the control node at `192.168.77.20`. Those addresses describe distinct recorded network roles, but the exact VirtualBox adapter setup and any network transition were not preserved. I have left this discrepancy visible rather than inventing adapter details.
 
-These are repeat instructions for the lab design, not a transcript of the original mouse clicks. The exact VirtualBox adapter names and internal-network name were not preserved.
-
-1. Power off both Ubuntu VMs before changing their network adapters.
-2. In VirtualBox Manager, open each VM's **Settings → Network**.
-3. Keep the admin VM's management connection that makes 192.168.56.101 reachable from WSL. Give the admin VM a separate adapter attached to a named **Internal Network** for its connection to the target.
-4. Attach the target VM's lab adapter to that same Internal Network name. Keep the target off a bridged or direct host-facing connection; route its management traffic through the admin VM.
-5. Start both VMs and check their addresses and routes:
+During the investigation I checked the machines' interface and route state with:
 
 ~~~sh
-# On the admin VM
-ip -br address
-ip route
-
-# On the target VM
 ip -br address
 ip route
 ~~~
 
-ip -br address lists interfaces and assigned addresses concisely; ip route shows where traffic can go. Confirm WSL can reach the admin's management address and the admin can reach the target's internal address. The target should not have an unintended route that bypasses the lab design.
+The first command lists interface addresses; the second shows routes. They helped me reason about whether the target was reachable through the intended lab path. The ZIP's own isolation notes called for a VirtualBox Internal Network, no default route or IP forwarding, and disabled target shared folders, shared clipboard, and drag-and-drop. Those settings reduced the chance that the intentionally weak service or synthetic data could affect anything outside the lab.
 
-The recorded addresses do not preserve every VirtualBox adapter setting, so match the paths above to your VM configuration rather than assuming a specific adapter number. The important separation is that the target is reached through the admin/control VM on the lab network.
+The exact VirtualBox mouse-click sequence was not captured. The isolation description above combines the package's recorded design with the addresses visible in the project history.
 
-### Set up SSH key access for each hop
+## 2. I established SSH access and transferred the induction package
 
-The private-key files used later were named mds_admin_ed25519 on WSL and mds_target_ed25519 on the admin VM. Their later SCP transfers succeeded. The exact key-creation and public-key-installation commands from the original setup were not captured. For someone recreating this lab, these are standard equivalent setup commands; skip key generation if the files already exist, and never overwrite a working private key.
+I used SSH as the management transport between the laptop, admin server, and target. The key names visible in later transfers were `mds_admin_ed25519` for WSL-to-admin transfers and `mds_target_ed25519` for admin-to-target transfers. The key-creation commands were not captured, so I am not presenting reconstructed `ssh-keygen` commands as if I ran them.
 
-**On WSL, create a key for WSL-to-admin access, then install its public half on the admin VM:**
+The exact induction-package transfer shown in the screenshot was run in **Windows PowerShell**:
 
-~~~sh
-ssh-keygen -t ed25519 -f ~/.ssh/mds_admin_ed25519 -C "mdsadmin@mds-admin-01"
-ssh-copy-id -i ~/.ssh/mds_admin_ed25519.pub mdsadmin@192.168.56.101
-ssh -i ~/.ssh/mds_admin_ed25519 mdsadmin@192.168.56.101
+~~~powershell
+scp "$env:USERPROFILE\Downloads\mds-induction.zip" mdsadmin@192.168.56.101:~/
 ~~~
 
-ssh-keygen creates a private/public key pair. ssh-copy-id appends the public key to the remote account's authorized keys; it may prompt for the account's existing password or require using the VM console for initial setup. The final ssh command checks that key login works.
+PowerShell expanded `$env:USERPROFILE` to my Windows user folder. SCP read the ZIP from Downloads and copied it into the admin account's home directory over SSH. On the first connection, I had to address the host-key prompt; the admin account password was used when requested. This specific transfer did not use WSL's `/mnt/c` path.
 
-**On the admin VM, create a separate key for admin-to-target access:**
-
-~~~sh
-ssh-keygen -t ed25519 -f ~/.ssh/mds_target_ed25519 -C "mdsadmin@mds-ubuntu-server-01"
-ssh-copy-id -i ~/.ssh/mds_target_ed25519.pub mdsadmin@192.168.77.10
-ssh -i ~/.ssh/mds_target_ed25519 mdsadmin@192.168.77.10
-~~~
-
-This keeps the target private key on the admin/control VM that uses it, rather than copying it to WSL. These key-generation commands are reconstructed setup instructions, not confirmed commands from our original terminal history.
-
-At the first connection, verify the host-key fingerprint using the VM console before accepting it. Host-key verification helps ensure the SSH client is connecting to the intended VM.
-
-**SSH scope clarification:** SSH was configured as the management transport and the key-based transfers worked. We did not harden sshd settings in Project 1a: no SSH authentication policy, root-login setting, SSH port or firewall rule was changed here. SSH and firewall hardening were deferred to the separate proactive cloud project. Do not describe Project 1a as having hardened SSH.
-
-### Transfer and deploy mds-induction.zip
-
-You confirmed that this is the archive copied from Windows to the admin server over SSH/SCP. Its SHA-256 is:
+The file's SHA-256 fingerprint was:
 
 ~~~text
 f23cb7326c3fb42868286a72705d7f25cef80cb896d8ff1739193d94f0e18c07
 ~~~
 
-The archive contains lab.py, session.json and assets/session.py. The deployment asset seeds fictional files and the deliberately permissive reporting service for the investigation. The unchanged archive is included in this repository at lab-assets/mds-induction.zip, with its checksum beside it. A sentence in the archive's START-HERE.md says it had not been deployed; that note is stale because you confirmed this is the archive copied for this lab. We preserved the archive unchanged so its checksum remains valid.
+I used the hash to identify the exact archive and check that the copy had not changed. The same archive is preserved in this repository at [lab-assets/mds-induction.zip](../lab-assets/mds-induction.zip), with its fingerprint in [lab-assets/mds-induction.sha256](../lab-assets/mds-induction.sha256). Its `START-HERE.md` contains a stale sentence saying the package had not been deployed; the archive is kept unchanged so the recorded fingerprint remains valid.
 
-**In Windows PowerShell on the laptop, check the ZIP and copy it to the admin VM:**
-
-~~~powershell
-Get-FileHash "$env:USERPROFILE\Downloads\mds-induction.zip" -Algorithm SHA256
-scp "$env:USERPROFILE\Downloads\mds-induction.zip" mdsadmin@192.168.56.101:~/
-~~~
-
-This is the exact SCP command shown in your screenshot. PowerShell expands $env:USERPROFILE to your Windows user folder, so SCP reads the ZIP from Downloads and sends it to the admin account's home directory. This transfer uses Windows OpenSSH from PowerShell; it does not use WSL's /mnt/c path. On the first SSH connection, verify the server's host-key fingerprint before accepting it; enter the admin account password if prompted. The SHA-256 output should match the value above.
-
-**On the admin VM, verify and unpack the archive:**
-
-~~~sh
-sha256sum ~/mds-induction.zip
-unzip -q ~/mds-induction.zip -d ~/mds-devsecops
-cd ~/mds-devsecops/mds-induction
-~~~
-
-The first command checks that SCP did not change the archive. Unzip places its top-level mds-induction directory under the project folder. Cd enters the package directory containing lab.py.
-
-**Run the package's staged checks on the admin VM:**
+The package contains `lab.py`, `session.json`, and `assets/session.py). Its deployment asset seeds the fictional records, logs, archive, and deliberately permissive reporting service that formed the investigation scenario. The package documented these stages on the admin server:
 
 ~~~sh
 python3 lab.py preflight --ask-become-pass
@@ -122,252 +69,141 @@ python3 lab.py deploy --ask-become-pass
 python3 lab.py verify --ask-become-pass
 ~~~
 
-Preflight checks the control-node identity, Ansible version, target inventory, network addresses/routes, forwarding setting, and target SSH/sudo readiness. Deploy asks you to confirm the VirtualBox isolation checks, then seeds and verifies the synthetic vulnerable workload through Ansible. Verify checks that the intended initial state is present. These commands are the package's documented deployment workflow; the earlier chat preserved the successful remediation output, not a full transcript of each seed command.
+Preflight checked control-node identity, Ansible and inventory details, network state, and target SSH/sudo readiness. Deploy seeded and verified the synthetic starting workload through Ansible, after checking the lab isolation. Verify checked the expected initial state. These are the package's documented commands; the complete original terminal output for each seed stage was not retained in the conversation, so I distinguish them from the remediation output that was captured.
 
-**Isolation settings recorded in the package:** both Ubuntu VMs should use one enabled VirtualBox adapter attached to the same named Internal Network; the control VM is expected at 192.168.77.20 and the target at 192.168.77.10. There should be no default route or IP forwarding, and target shared folders, shared clipboard and drag-and-drop should be disabled. This keeps the intentionally weak files and service inside the local lab network.
+The package's isolation assumptions and the recorded `192.168.56.101` transfer address do not line up perfectly with its expected `192.168.77.20` control-node address. This remains a replication caveat in my record: the active VirtualBox network state should be understood before reusing the package.
 
-The admin address used for the PowerShell SCP transfer was 192.168.56.101, while the package preflight expects the control VM at 192.168.77.20. Treat these as separate recorded roles/addresses and verify the active adapter configuration before reproducing the package deployment; the preflight can reject a control VM whose active network state does not match its assumptions. The exact VirtualBox click sequence and any network transition between transfer and deployment were not preserved.
+## 3. I moved Lynis into the investigation
 
-The package's START-HERE file also says the target should have a pre-deployment snapshot named 01-Pre-Vulnerable-Lab. Its rollback instructions restore that snapshot from VirtualBox Manager. The package does not change SSH configuration, firewall rules, routes, SSH keys, or real customer records.
-
-The playbooks require an already provisioned target. They do not create VMs, network adapters, SSH keys, Ansible installation or the initial workload. The target must contain:
-
-- The systemd unit **mds-reports.service**.
-- Directories **/srv/mds/records**, **/srv/mds/logs** and **/srv/mds/archive**.
-- Synthetic files **customers.csv**, **application.log** and **export.csv** in those respective directories.
-- Parent-directory traversal permissions that allow the reporting identity to reach its files.
-
-All three playbooks assert the target IP **192.168.77.10**. If yours differs, update both the inventory and the assertions in every playbook. The account names and paths describe this specific lab.
-## 2. Obtain and transfer Lynis
-
-**In WSL:**
+I used Lynis 3.1.7 to help identify areas to inspect. In WSL, I cloned the tagged source, created an archive, recorded its hash, and transferred it to the admin server. I then transferred it from the admin server to the target. The captured commands included:
 
 ~~~sh
-command -v git tar ssh scp
 git clone --depth 1 --branch 3.1.7 https://github.com/CISOfy/lynis.git ~/lynis-3.1.7
-tar -czf ~/lynis-3.1.7.tar.gz -C ~ lynis-3.1.7
 sha256sum ~/lynis-3.1.7.tar.gz
 scp -i ~/.ssh/mds_admin_ed25519 ~/lynis-3.1.7.tar.gz mdsadmin@192.168.56.101:~/
-ssh -i ~/.ssh/mds_admin_ed25519 mdsadmin@192.168.56.101
 ~~~
 
-**Why:** command -v locates the required tools. Git fetches release 3.1.7 with limited history. Tar creates one compressed archive; -C makes its paths relative to your home directory. SHA-256 provides a fingerprint for transfer checks. SCP copies it using the specified key; SSH opens the admin session. Substitute your existing key filenames if different.
-
-The exact original packaging command was not preserved; this tar command is a replication equivalent. **Compare your own archive's hash across machines.** A fresh archive may differ from ours because of timestamps or Git metadata. Our original hash was:
-
-~~~text
-c0808d6b9e9a784ba912a32b2b43052d57ce0a2a2741735194969a3021ab739e
-~~~
-
-**On the admin VM:**
+On the admin server, I checked the hash and used the target-specific key for the second hop:
 
 ~~~sh
 sha256sum ~/lynis-3.1.7.tar.gz
 scp -i ~/.ssh/mds_target_ed25519 ~/lynis-3.1.7.tar.gz mdsadmin@192.168.77.10:~/
-ssh -i ~/.ssh/mds_target_ed25519 mdsadmin@192.168.77.10
 ~~~
 
-**Why:** check the admin copy against the WSL fingerprint, transfer it using the target key held on the admin VM, then open the target session.
+The hash recorded for that archive was `c0808d6b9e9a784ba912a32b2b43052d57ce0a2a2741735194969a3021ab739e`. Comparing hashes across the hops helped catch transfer errors. The original archive creation command was not captured, so the repository walkthrough describes a representative packaging command separately rather than claiming it as an exact historical command.
 
-**On the target:**
-
-~~~sh
-sha256sum ~/lynis-3.1.7.tar.gz
-~~~
-
-**Checkpoint:** all three hashes for your archive must match before extraction. Matching hashes detect transfer differences; they do not independently authenticate the upstream source.
-
-## 3. Install Lynis and preserve a baseline
-
-**On the target.** This installation block is a reconstruction for a new lab; the original extraction/copy commands were not captured. If **/opt/lynis-3.1.7** already exists from this exercise, inspect it and skip extraction and ownership changes.
+My first attempt to run Lynis from the home-directory copy failed because it could not find its include directory. I moved the installation under `/opt/lynis-3.1.7`, checked that its support files were present, and confirmed the version:
 
 ~~~sh
-tar -tzf ~/lynis-3.1.7.tar.gz
-sudo tar --no-same-owner -xzf ~/lynis-3.1.7.tar.gz -C /opt
-sudo chown -R root:root /opt/lynis-3.1.7
-sudo chmod -R go-w /opt/lynis-3.1.7
-ls -ld /opt /opt/lynis-3.1.7 /opt/lynis-3.1.7/include/functions
 cd /opt/lynis-3.1.7
 ./lynis show version
+~~~
+
+The command printed `3.1.7`. The initial audit command was:
+
+~~~sh
 sudo ./lynis audit system --quick
 ~~~
 
-**Why:** first list the archive and confirm its top-level directory is **lynis-3.1.7/**. The next command extracts it into /opt without retaining archived ownership. Chown explicitly sets root ownership; chmod removes group/other write permission while preserving executable bits. Ls checks metadata. Cd ensures this Lynis release finds its support files; the version command should print 3.1.7. The privileged audit inspects system configuration, with --quick avoiding normal pauses.
+Lynis stopped at a security check because the source tree was owned by the ordinary account. I cancelled that run with Ctrl+C, inspected `/opt` and the installation, and made the installed tree root-owned and not writable by group or other users before continuing. The exact extraction and ownership-changing commands were not preserved; the final listings showed the Lynis files under `/opt/lynis-3.1.7` owned by `root:root`. That mattered because running a privileged audit over user-controlled program files would be unsafe.
 
-After the scan, save its baseline before another audit overwrites the active logs:
+After the baseline scan, I saved the Lynis log and report before subsequent runs could replace them:
 
 ~~~sh
 sudo install -d -m 0700 /root/mds-audit-baseline
-sudo cp --update=none /var/log/lynis.log /var/log/lynis-report.dat /root/mds-audit-baseline/
+sudo cp -n /var/log/lynis.log /var/log/lynis-report.dat /root/mds-audit-baseline/
 sudo sha256sum /var/log/lynis.log /root/mds-audit-baseline/lynis.log /var/log/lynis-report.dat /root/mds-audit-baseline/lynis-report.dat
 ~~~
 
-**Why:** install creates a root-only evidence directory. Copy preserves existing baseline files. SHA-256 verifies each original/saved pair on the first capture. If a baseline already exists, different hashes may mean a newer scan is being compared with older evidence. We originally used cp -n; the spelling above follows the warning printed by that system.
+The directory was root-only. Matching source and saved hashes confirmed that the baseline copies matched at capture time. The `cp -n` command printed a portability warning, but completed; its suggested spelling was `--update=none`.
 
-Inspect the workload too:
+Lynis gave me a list of suggestions, but its score did not move much after the focused fixes. That did not mean the work had no value: I had addressed specific, evidenced application-service risks, while many general host recommendations were outside this project. I used Lynis as an investigative aid and relied on the actual permission, service, and Ansible checks to demonstrate the selected improvements.
 
-~~~sh
-sudo systemctl cat mds-reports.service
-sudo stat -c '%A %a %U:%G %n' /srv/mds/records/customers.csv /srv/mds/logs /srv/mds/logs/application.log /srv/mds/archive /srv/mds/archive/export.csv
-~~~
+## 4. I traced the findings to actual permissions and service settings
 
-**Why:** systemctl shows the unit and drop-ins. Stat shows symbolic/numeric permissions, ownership and filenames together. This consolidated block replaces several historical checks. Record your own starting state: the scanner does not establish the application's access requirements.
+I examined the service definition and the files it could access. The evidence showed:
 
-Our starting state included customer records and an application log at **0666**, an archive directory at **0777**, and a service using **nobody:nogroup** with permissive systemd settings. See [findings and remediation](findings-and-remediation.md).
+- `/srv/mds/records/customers.csv` was owned by root with mode `0666`. Those mode bits allowed local users who could traverse the parent directories to alter its contents.
+- `/srv/mds/logs` was `0755`, and `application.log` was `0666`.
+- `/srv/mds/archive` was `0777`, and `export.csv` was `0644`.
+- The original service ran as `nobody:nogroup` with `UMask=0000`, `NoNewPrivileges=no`, `PrivateTmp=no`, `ProtectSystem=no`, and `ProtectHome=no`.
 
-## 4. Prepare the repository and inventory
+These checks explained why the problem mattered. A writable customer file could be tampered with, and broad log/archive access could expose or alter reporting artifacts. The generic service identity also made it harder to give the worker only the permissions it required.
 
-Return from the target SSH session to the **admin VM**:
+Lynis raised a separate warning about `/etc/sudoers.d` being root-owned with mode `0755`. I inspected the directory and the related Lynis log excerpt. The mode allowed root to write; it did not show that an ordinary account could change sudo policy. I documented the warning and left it unchanged pending comparison with the system's expected package and local policy rather than applying an unverified permission change.
 
-~~~sh
-exit
-~~~
+## 5. I organized the Ansible remediation as separate playbooks
 
-**Why:** configuration automation runs on the control node. Confirm the prompt now shows **mds-admin-01**.
+I kept the work in separate YAML files so each control area was reviewable and could be committed independently to the portfolio repository:
 
-For a new checkout, run on the admin VM:
+- [harden.yml](../ansible/harden.yml) created the non-login `mds-reports` system account, configured the systemd identity and restrictions, changed ownership/mode on `customers.csv`, and checked allowed and denied access.
+- [data-files.yml](../ansible/data-files.yml) restricted the log and archive directories and files, and allowed the reporting service to write to those paths under `ProtectSystem=strict`.
+- [mock-worker.yml](../ansible/mock-worker.yml) replaced the placeholder `sleep infinity` process with a synthetic worker and checked its generated report, service state, and ordinary-admin denial.
 
-~~~sh
-git clone https://github.com/DelaneKay/project-01a-meridian-linux-hardening.git
-cd project-01a-meridian-linux-hardening/ansible
-cp inventory/hosts.ini.example inventory/hosts.ini
-nano inventory/hosts.ini
-~~~
-
-**Why:** clone obtains the playbooks; cd enters their directory; cp makes a working inventory; nano lets you replace **REPLACE_WITH_YOUR_TARGET_KEY** with the target-key filename on the admin VM. Confirm the SSH user and address too. Save with Ctrl+O, Enter; exit with Ctrl+X. Repository access is needed while this repository is private. Never insert private-key contents or passwords into the inventory.
-
-These are new replication setup instructions. Our original files already lived under **~/mds-devsecops/ansible**. Use that directory instead if continuing the original lab; do not overwrite an existing inventory.
-
-Check the controller, connection, privilege escalation and YAML together:
+Before applying changes, I checked that Ansible could parse the YAML and reach the target. The syntax check did not change the target; the ping tested SSH and remote Python, and the privileged identity check verified sudo:
 
 ~~~sh
-ansible --version
+ansible-playbook -i inventory/hosts.ini harden.yml --syntax-check
 ansible -i inventory/hosts.ini mds-ubuntu-server-01 -m ansible.builtin.ping
 ansible -i inventory/hosts.ini mds-ubuntu-server-01 -b --ask-become-pass -m ansible.builtin.command -a "id"
-ansible-playbook -i inventory/hosts.ini harden.yml data-files.yml mock-worker.yml --syntax-check
 ~~~
 
-**Why:** the first command identifies the installed version. Ansible ping tests SSH and remote Python, not ICMP. The privileged id command should show root, proving sudo works. The last command parses all three playbooks before mutation. These connectivity checks are added replication prerequisites, not claimed original terminal captures.
+The playbooks asserted that the target was `192.168.77.10` before making changes. That check reduced the risk of applying the remediation to the wrong host. Each playbook used privilege escalation because it had to manage a system account, systemd drop-ins, or protected files.
 
-| Option | Purpose |
+The first control I applied was the service identity. Ansible created `mds-reports` as a system account with no home directory and a non-login shell. A systemd drop-in then set `User=mds-reports` and `Group=mds-reports`. This gave the workload a dedicated identity whose file permissions could be scoped to its purpose.
+
+I next limited the service's runtime authority. The drop-in set:
+
+| Setting | Why I used it |
 | --- | --- |
-| -i | Select the inventory file. |
-| -m | Select an Ansible module for an ad-hoc task. |
-| -a | Supply that module's arguments. |
-| -b | Become the privileged user, root by default. |
-| --ask-become-pass | Prompt for the target sudo password. |
-| --syntax-check | Parse the playbooks without applying them; this does not prove runtime success. |
+| `NoNewPrivileges=true` | Prevents the service from gaining privileges through execution, such as through setuid programs. |
+| `UMask=0027` | Removes group-write and other-user permissions from newly created files/directories by default. It does not change existing permissions. |
+| `PrivateTmp=true` | Gives the service a private view of `/tmp` and `/var/tmp`. |
+| `ProtectSystem=strict` | Makes most filesystem paths read-only in the service's mount namespace. |
+| `ProtectHome=true` | Hides home directories from the service. |
+| `ReadWritePaths` | Allows the service to write only to its required records, logs, and archive paths within the protected filesystem view. |
 
-**Checkpoint:** ping returns pong, sudo succeeds, and syntax checks pass.
+These restrictions complemented Unix ownership and modes; they did not replace them. In particular, `NoNewPrivileges` does not prevent writing a file when its permissions already allow the service to write it.
 
-## 5. Apply all three playbooks in order
+For customer records, Ansible changed `customers.csv` from root-owned `0666` to `mds-reports:mds-reports` with mode `0600`. The reporting account retained read/write access; ordinary `mdsadmin` could not read or write it. I made this choice because the worker needed routine access, while authorized administrators still needed a sudo/root override.
 
-**On the admin VM, from the same Ansible directory:**
+The data-files playbook similarly set the log and archive directories to `0700`, and their existing log/export files to `0600`, owned by `mds-reports`. The systemd writable-path settings allowed the service to use those directories while `ProtectSystem=strict` made the rest of the filesystem read-only to it.
 
-~~~sh
-ansible-playbook -i inventory/hosts.ini harden.yml data-files.yml mock-worker.yml --ask-become-pass
-~~~
+## 6. I verified the worker and access controls
 
-**Why:** Ansible runs the named playbooks in order with one sudo-password prompt. This groups the separate commands used during development; the YAML files remain separate for review and reuse. Investigate failed/unreachable results before continuing.
+I did not treat a successful Ansible run alone as proof. The service remained active and systemd reported `User=mds-reports` and `Group=mds-reports`. I also checked the running process with `ps`; before the mock worker replaced it, the process was `/usr/bin/sleep infinity` running under the dedicated account.
 
-| Playbook | What it achieves and why |
+The access checks tested both sides of the policy. The reporting account could read and write the customer file. Ordinary `mdsadmin` could not read or write it. The checks were run through `runuser` with Ansible privilege escalation, because a non-root account cannot use `runuser` to switch to another user. In the playbooks, an expected permission-denied return code counted as a successful negative test.
+
+The systemd property checks later showed `UMask=0027`, `NoNewPrivileges=yes`, `PrivateTmp=yes`, `ProtectSystem=strict`, `ProtectHome=yes`, and writable paths for records, logs, and archives. The directories were owned by `mds-reports` at `0700`; the customer, log, export, and mock report files were at `0600`.
+
+To prove the service still performed useful work, I replaced the placeholder with the mock worker. It wrote a clearly labelled synthetic report and log entry. The Ansible output showed the service active, the synthetic report timestamp, and successful checks that ordinary `mdsadmin` could not read or write the mock report. The mock worker exercised the archive and log paths; it did not process customer records.
+
+I also reran the playbooks. The final mock-worker verification run reported `changed=0`, showing Ansible found the configuration already in the desired state. Earlier runs showed changes while I was still adding controls; those were expected as the playbooks evolved.
+
+The verification has limits. A `0600` file prevents ordinary users from opening it directly, but deletion or replacement also depends on permissions on its parent directory. The published checks confirmed read/write permissions on the file, not deletion behavior. The mock worker did not test forbidden writes from inside every systemd isolation boundary, and report-existence checks alone do not prove a fresh write when an older report is already present.
+
+## 7. I preserved the evidence and recorded scope
+
+I saved two terminal screenshots: the first successful mock-worker run and the later idempotent run. The repository also contains a verification record and a findings/remediation record:
+
+- [Initial mock-worker run](../evidence/mock-worker-run.png)
+- [Idempotent mock-worker rerun](../evidence/mock-worker-idempotent-run.png)
+- [Hardening verification record](../evidence/hardening-verification.md)
+- [Findings and remediation record](findings-and-remediation.md)
+
+The work completed here was reactive Linux service and data hardening on a fictional workload in a local VirtualBox lab. Lynis helped identify areas to investigate, but I used direct evidence to select and verify specific controls. I did not harden sshd settings or firewall rules, install auditd, or build a production reporting application. SSH provided administration and file transfer; SSH and firewall hardening were deferred to a separate proactive cloud project.
+
+## Troubleshooting I encountered
+
+| What I saw | What it meant in my investigation |
 | --- | --- |
-| [harden.yml](../ansible/harden.yml) | Creates the non-login mds-reports identity, applies systemd limits, gives it ownership of customers.csv at 0600, and tests service-account access and ordinary-admin denial. |
-| [data-files.yml](../ansible/data-files.yml) | Restricts log/archive directories to 0700 and their existing files to 0600, owned by mds-reports, and permits these service write paths. |
-| [mock-worker.yml](../ansible/mock-worker.yml) | Replaces the sleep infinity placeholder with a Python worker that updates a synthetic report and log every 60 seconds, then checks output, service state and ordinary-admin denial. |
+| `dpkg-query -W lynis` found no package | Lynis was cloned and installed manually, so it was not registered with the package manager. |
+| Lynis could not find its include directory | I was invoking it outside the untarred installation directory. Running it from `/opt/lynis-3.1.7` resolved the path issue. |
+| Lynis flagged user-owned files | I cancelled the privileged scan, checked the installation ownership, and placed the tool under root ownership in `/opt`. |
+| An ad-hoc Ansible task reported “Missing sudo password” | It needed both privilege escalation (`-b`) and a become-password prompt (`--ask-become-pass`). |
+| `runuser` refused to switch users | The Ansible command was not privileged. The working test used `-b --ask-become-pass`. |
+| The Python interpreter discovery warning appeared | Ansible had selected `/usr/bin/python3.14`; the warning did not prevent the successful runs. |
+| A rerun still showed changes | I had just added or changed directives. After the configuration settled, the next run reported `changed=0`. |
 
-The file module's **state: file** does not create missing data files. That is why the workload prerequisites matter.
-
-| Systemd setting | Purpose and limit |
-| --- | --- |
-| User/Group=mds-reports | Run with a dedicated identity whose file access can be scoped. |
-| NoNewPrivileges=true | Prevent privilege gains through execution, such as setuid programs. It does not remove existing file-write permission. |
-| UMask=0027 | Remove group write and all other-user bits from newly created files/directories. It does not change existing modes or guarantee 0600 by itself. |
-| PrivateTmp=true | Give the service private /tmp and /var/tmp views. |
-| ProtectSystem=strict | Make most filesystem paths read-only in the service's mount namespace. |
-| ProtectHome=true | Hide home directories from the service. |
-| ReadWritePaths | Allow selected paths within that read-only view; ownership and modes still govern access. |
-
-The two writable-path drop-ins accumulate records, logs and archives because neither resets the list. A handler reloads systemd and restarts the service after configuration changes. The mock-worker playbook flushes its handler before checking output.
-
-## 6. Verify the result and repeat for idempotence
-
-**On the admin VM:**
-
-~~~sh
-ansible -i inventory/hosts.ini mds-ubuntu-server-01 -m ansible.builtin.command -a "systemctl show mds-reports.service -p ActiveState -p User -p Group -p UMask -p NoNewPrivileges -p PrivateTmp -p ProtectSystem -p ProtectHome -p ReadWritePaths"
-ansible -i inventory/hosts.ini mds-ubuntu-server-01 -b --ask-become-pass -m ansible.builtin.command -a "stat -c '%A %a %U:%G %n' /srv/mds/records/customers.csv /srv/mds/logs /srv/mds/logs/application.log /srv/mds/archive /srv/mds/archive/export.csv /srv/mds/archive/mock-report.txt"
-ansible-playbook -i inventory/hosts.ini harden.yml data-files.yml mock-worker.yml --ask-become-pass
-~~~
-
-**Why:** systemctl reads effective settings after combining all drop-ins. Privileged stat can inspect files inside the private directories. The repeat playbook run checks convergence: when the desired configuration already exists, Ansible should report **changed=0** and avoid configuration-triggered restarts.
-
-Expected results:
-
-- Active service, user/group mds-reports, UMask=0027, protections enabled and records/logs/archive in ReadWritePaths.
-- Customer, log, export and mock-report files at 0600; log/archive directories at 0700; ownership mds-reports.
-- Automated checks allow reporting-account access and deny ordinary mdsadmin access to customer records and the mock report.
-- A labelled synthetic report, no failed/unreachable tasks, and no configuration changes on repetition.
-
-Ad-hoc command tasks can display CHANGED for read-only queries because the module cannot infer their intent. The playbook verification tasks explicitly use **changed_when: false**.
-
-Our separately executed mock-worker runs reported **ok=10 changed=3** initially and **ok=9 changed=0** later. Combined-run task counts will differ; validate outcomes rather than matching those counts.
-
-**What this proves:** the mock writes to the archive and log inside the hardened service. Customer-file runuser tests check account permissions outside that service namespace; the mock does not process customer records. Mode 0600 alone also does not prevent deletion by someone with write/search permission on the parent directory.
-
-## 7. Preserve evidence and describe the scope
-
-Keep the first successful mock-worker output and the later unchanged run. Our evidence is:
-
-- [First-run screenshot](../evidence/mock-worker-run.png): deployment, report generation and denial checks.
-- [Repeat-run screenshot](../evidence/mock-worker-idempotent-run.png): successful verification with changed=0.
-- [Verification record](../evidence/hardening-verification.md) and [findings record](findings-and-remediation.md): supporting state and decisions.
-
-You can repeat the target-side Lynis audit from stage 3 after preserving the baseline. Compare relevant findings, rather than treating its broad score as the only success measure. Do not claim every finding was remediated.
-
-This is reactive service/data hardening in a fictional lab. SSH/firewall hardening, auditd and a production reporting application were not completed here. A separate cloud project is planned for proactive hardening.
-
-## Optional troubleshooting from the original exercise
-
-| Symptom | Explanation and next action |
-| --- | --- |
-| dpkg-query -W lynis finds no package | It checks package-manager installation; our manually cloned tree was not a registered package. |
-| Missing include directory or ./lynis not found | Change into /opt/lynis-3.1.7 before running it. The ./ prefix refers to the current directory. |
-| Lynis flags user-owned files | We cancelled with Ctrl+C and used a root-owned installation. Stage 3 provides replay preparation. |
-| Missing sudo password or runuser rejects non-root execution | For privileged ad-hoc tasks, supply both -b and --ask-become-pass. The playbooks already set become: true. |
-| Python interpreter discovery warning | It reports remote Python selection. It did not cause our successful runs to fail; investigate if that environment changes. |
-| Rerun only service settings | Add --tags service_runtime to a harden.yml invocation. Use the full initial run so account/data prerequisites are not skipped. |
-
-**Individual permission test, on the admin VM:**
-
-~~~sh
-ansible -i inventory/hosts.ini mds-ubuntu-server-01 -b --ask-become-pass -m ansible.builtin.command -a "runuser -u mds-reports -- test -w /srv/mds/records/customers.csv"
-~~~
-
-**Why:** runuser changes identity, then test -w checks write access without modifying contents. Success is silent with code 0. Substituting mdsadmin should return 1 for denied access; an ad-hoc task calls that failed. The playbook negative checks explicitly require code 1. A privileged administrator still has sudo/root override.
-
-**Process identity, on the target:**
-
-~~~sh
-systemctl show mds-reports.service -p MainPID -p User -p Group
-~~~
-
-**Why:** this retrieves the current PID and configured identity. Substitute that PID into **ps -p PID -o pid,euser,egroup,args** to see the process's effective user, group and command. Our original PID 42826 was temporary and must not be reused blindly.
-
-**Lynis file-ownership investigation, on the target:**
-
-~~~sh
-sudo find /opt/lynis-3.1.7 \( ! -user root -o ! -group root -o -perm /022 \) -print
-ls -l /opt/lynis-3.1.7/db/languages/{en-GB,nl-BE,de-AT,br,nl-NL,en-US}
-~~~
-
-**Why:** find locates unexpected ownership or group/other write bits. Our results included language symlinks; ls showed their targets. Linux symlink modes commonly display 777 and do not control access to their targets. Add **-type f** after the search path if you specifically want regular files.
-
-**Sudoers-directory investigation, on the target:**
-
-~~~sh
-ls -ld /etc/sudoers.d
-sudo grep -n -A 12 -B 4 'possibly unsafe permissions' /var/log/lynis.log
-~~~
-
-**Why:** ls shows ownership/mode; grep finds warnings with surrounding log lines. This grouped diagnostic reconstructs how to inspect the excerpts discussed in our lab. Our root-owned directory was 0755; the inspected Lynis test expected no other-user permission bits. We documented the warning without changing it. A scanner warning warrants investigation; it does not itself prove that ordinary users can modify sudo policy.
+The Lynis sudoers-directory warning was another useful investigation lesson. The scanner reported `/etc/sudoers.d` as possibly unsafe because it was mode `0755`. Checking ownership and actual write bits showed that only root could write to it. I recorded the warning and did not alter the system based solely on the scanner message.
