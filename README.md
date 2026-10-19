@@ -48,13 +48,16 @@ The original reporting unit also used permissive settings such as `UMask=0000`, 
 
 - [Idempotent mock-worker Ansible run](evidence/mock-worker-idempotent-run.txt): synthetic report generated, service active, ordinary-admin read/write checks passed, and `changed=0` on the rerun.
 - [Idempotent mock-worker screenshot](evidence/mock-worker-idempotent-run.png): the saved terminal view of the same rerun. The first-run screenshot remains local and is not needed to establish idempotence.
-- The completed playbooks were copied from `mds-admin-01` into this repository as separate YAML files after their SHA-256 checksums were matched. The older preflight-only `harden.yml` in the local workspace is a different file and was left untouched.
+- [Hardening verification record](evidence/hardening-verification.md): captured lab versions, current service properties, file permissions, and successful playbook summaries.
+- [Findings and remediation record](docs/findings-and-remediation.md): evidence, risk, control, verification, and scope decisions for each finding.
+- The published playbooks were copied from `mds-admin-01` as separate YAML files after their SHA-256 checksums were matched. The earlier preflight-only draft remains outside this repository.
 
 ## Repository map
 
 ```text
-README.md                         This case study and lab architecture
-evidence/                         Selected synthetic verification output
+README.md                         This case study, architecture and run instructions
+docs/findings-and-remediation.md  Evidence-to-control record
+evidence/                         Sanitized verification output and screenshot
 ansible/                          Final playbooks copied from the admin server
   harden.yml                      Reporting identity, systemd and customer file
   data-files.yml                  Log and archive permissions and writable paths
