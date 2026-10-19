@@ -43,7 +43,7 @@ The adapter record covers only the settings captured; it does not establish ever
 
 ## 2. I established SSH access and transferred the induction package
 
-I used SSH as the management transport between the laptop, admin server, and target. The key names visible in later transfers were `mds_admin_ed25519` for WSL-to-admin transfers and `mds_target_ed25519` for admin-to-target transfers. The key-creation commands were not captured, so I am not presenting reconstructed `ssh-keygen` commands as if I ran them.
+**Principle — secure administration and authentication.** SSH encrypts the management session and file transfer, protecting credentials and data in transit. SSH host keys let a client check that it is connecting to the expected server; client keys identify the administrator. Separate keys for the two hops also limit which connection each credential can authorize. The key names visible in later transfers were `mds_admin_ed25519` for WSL-to-admin transfers and `mds_target_ed25519` for admin-to-target transfers. The key-creation commands were not captured, so I am not presenting reconstructed `ssh-keygen` commands as if I ran them. The saved evidence does not show an independent fingerprint check at the first host-key prompt, so I cannot claim that verification step was documented.
 
 The exact induction-package transfer shown in the screenshot was run in **Windows PowerShell**:
 
@@ -51,7 +51,7 @@ The exact induction-package transfer shown in the screenshot was run in **Window
 scp "$env:USERPROFILE\Downloads\mds-induction.zip" mdsadmin@192.168.56.101:~/
 ~~~
 
-PowerShell expanded `$env:USERPROFILE` to my Windows user folder. SCP read the ZIP from Downloads and copied it into the admin account's home directory over SSH. On the first connection, I had to address the host-key prompt; the admin account password was used when requested. This specific transfer did not use WSL's `/mnt/c` path.
+PowerShell expanded `$env:USERPROFILE` to my Windows user folder. SCP read the ZIP from Downloads and copied it into the admin account's home directory over SSH. On the first connection, I had to address the host-key prompt; the admin account password was used when requested. This specific transfer did not use WSL's `/mnt/c` path. The encrypted SCP channel protected the archive in transit, while the checksum comparison provided a separate check that the received bytes matched the recorded copy.
 
 The file's SHA-256 fingerprint was:
 
@@ -109,7 +109,7 @@ sudo ./lynis audit system --quick
 
 **Principle — integrity of privileged tools.** A privileged audit tool must come from files that ordinary users cannot alter. Otherwise, root could execute tampered code. Lynis stopped because the source tree was owned by my ordinary account. I cancelled that run with Ctrl+C, inspected `/opt` and the installation, and made the installed tree root-owned and not writable by group or other users before continuing. The exact extraction and ownership-changing commands were not preserved; the final listings showed the Lynis files under `/opt/lynis-3.1.7` owned by `root:root`. That mattered because running a privileged audit over user-controlled program files would be unsafe.
 
-After the baseline scan, I saved the Lynis log and report before subsequent runs could replace them:
+**Principle — preserve evidence integrity and access control.** Baseline output can be overwritten by later scans, and audit logs may contain sensitive system details. I saved the Lynis log and report in a root-only directory before later runs could replace them:
 
 ~~~sh
 sudo install -d -m 0700 /root/mds-audit-baseline
@@ -117,7 +117,7 @@ sudo cp -n /var/log/lynis.log /var/log/lynis-report.dat /root/mds-audit-baseline
 sudo sha256sum /var/log/lynis.log /root/mds-audit-baseline/lynis.log /var/log/lynis-report.dat /root/mds-audit-baseline/lynis-report.dat
 ~~~
 
-The directory was root-only. Matching source and saved hashes confirmed that the baseline copies matched at capture time. The `cp -n` command printed a portability warning, but completed; its suggested spelling was `--update=none`.
+The directory was root-only, limiting access to the baseline evidence. Matching source and saved hashes confirmed that the saved copies matched at capture time; as with the archive hashes, this check proves equality of the compared bytes, not their original source or authenticity. The `cp -n` command printed a portability warning, but completed; its suggested spelling was `--update=none`.
 
 **Principle — risk-based assessment.** A scanner is a source of leads, not a replacement for checking the system state and judging which risks matter to the service. Lynis gave me a list of suggestions, but its score did not move much after the focused fixes. That did not mean the work had no value: I had addressed specific, evidenced application-service risks, while many general host recommendations were outside this project. I used Lynis as an investigative aid and relied on the actual permission, service, and Ansible checks to demonstrate the selected improvements.
 
@@ -132,7 +132,7 @@ I examined the service definition and the files it could access. The evidence sh
 
 **Principle — evidence-based risk assessment.** I needed to understand the effective permissions and service configuration before selecting controls; a finding matters when its reachable attack path and impact are clear. These checks explained why the problem mattered. A writable customer file could be tampered with, and broad log/archive access could expose or alter reporting artifacts. The generic service identity also made it harder to give the worker only the permissions it required.
 
-Lynis raised a separate warning about `/etc/sudoers.d` being root-owned with mode `0755`. I inspected the directory and the related Lynis log excerpt. The mode allowed root to write; it did not show that an ordinary account could change sudo policy. I documented the warning and left it unchanged pending comparison with the system's expected package and local policy rather than applying an unverified permission change.
+**Principle — protect privileged configuration while validating findings.** Sudo policy controls administrative access, so its files must be writable only by trusted administrators. Lynis raised a separate warning about `/etc/sudoers.d` being root-owned with mode `0755`. I inspected the directory and the related Lynis log excerpt. The mode allowed root to write; it did not show that an ordinary account could change sudo policy. I documented the warning and left it unchanged pending comparison with the system's expected package and local policy rather than applying an unverified permission change.
 
 ## 5. I organized the Ansible remediation as separate playbooks
 
@@ -150,7 +150,7 @@ ansible -i inventory/hosts.ini mds-ubuntu-server-01 -m ansible.builtin.ping
 ansible -i inventory/hosts.ini mds-ubuntu-server-01 -b --ask-become-pass -m ansible.builtin.command -a "id"
 ~~~
 
-The playbooks asserted that the target was `192.168.77.10` before making changes. That check reduced the risk of applying the remediation to the wrong host. Each playbook used privilege escalation because it had to manage a system account, systemd drop-ins, or protected files.
+**Principle — scope control and change safety.** A correct hardening change applied to the wrong server can still cause an incident. The playbooks asserted that the target was `192.168.77.10` before making changes. That check reduced the risk of applying the remediation to the wrong host. Each playbook used privilege escalation because it had to manage a system account, systemd drop-ins, or protected files.
 
 **Principle — least privilege.** A service should run with only the identity and access it needs, rather than sharing a generic or administrator identity. Ansible created `mds-reports` as a system account with no home directory and a non-login shell. A systemd drop-in then set `User=mds-reports` and `Group=mds-reports`. This gave the workload a dedicated identity whose file permissions could be scoped to its purpose.
 
