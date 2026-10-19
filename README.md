@@ -48,7 +48,7 @@ The original reporting unit also used permissive settings such as `UMask=0000`, 
 
 - [Idempotent mock-worker Ansible run](evidence/mock-worker-idempotent-run.txt): synthetic report generated, service active, ordinary-admin read/write checks passed, and `changed=0` on the rerun.
 - [Idempotent mock-worker screenshot](evidence/mock-worker-idempotent-run.png): the saved terminal view of the same rerun. The first-run screenshot remains local and is not needed to establish idempotence.
-- The completed playbooks currently reside on `mds-admin-01`. They will be published as **separate YAML files** after their final contents are transferred and checked. The older local preflight-only `harden.yml` is not the completed remediation and is intentionally not published as such.
+- The completed playbooks were copied from `mds-admin-01` into this repository as separate YAML files after their SHA-256 checksums were matched. The older preflight-only `harden.yml` in the local workspace is a different file and was left untouched.
 
 ## Repository map
 
