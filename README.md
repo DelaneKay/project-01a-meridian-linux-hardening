@@ -46,8 +46,17 @@ The original reporting unit also used permissive settings such as `UMask=0000`, 
 
 ## Evidence
 
-- [Idempotent mock-worker Ansible run](evidence/mock-worker-idempotent-run.txt): synthetic report generated, service active, ordinary-admin read/write checks passed, and `changed=0` on the rerun.
-- [Idempotent mock-worker screenshot](evidence/mock-worker-idempotent-run.png): the saved terminal view of the same rerun. The first-run screenshot remains local and is not needed to establish idempotence.
+### Initial run
+
+The first Ansible run installed and started the synthetic worker, produced its report, and passed both ordinary-admin denial checks. It completed with `ok=10 changed=3 failed=0`.
+
+![First successful mock-worker run](evidence/mock-worker-run.png)
+
+### Idempotent rerun
+
+The second run verified the same output and access controls with `changed=0`, showing Ansible found the target already in the requested state. The text transcript is available [here](evidence/mock-worker-idempotent-run.txt).
+
+![Idempotent mock-worker rerun](evidence/mock-worker-idempotent-run.png)
 - [Hardening verification record](evidence/hardening-verification.md): captured lab versions, current service properties, file permissions, and successful playbook summaries.
 - [Findings and remediation record](docs/findings-and-remediation.md): evidence, risk, control, verification, and scope decisions for each finding.
 - The published playbooks were copied from `mds-admin-01` as separate YAML files after their SHA-256 checksums were matched. The earlier preflight-only draft remains outside this repository.
@@ -57,7 +66,7 @@ The original reporting unit also used permissive settings such as `UMask=0000`, 
 ```text
 README.md                         This case study, architecture and run instructions
 docs/findings-and-remediation.md  Evidence-to-control record
-evidence/                         Sanitized verification output and screenshot
+evidence/                         Sanitized verification output and two screenshots
 ansible/                          Final playbooks copied from the admin server
   harden.yml                      Reporting identity, systemd and customer file
   data-files.yml                  Log and archive permissions and writable paths
