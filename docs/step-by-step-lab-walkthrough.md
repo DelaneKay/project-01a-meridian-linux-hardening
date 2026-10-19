@@ -4,14 +4,11 @@ This document records my Project 1a journey: how I investigated an intentionally
 
 ## The situation at Meridian Digital Services
 
-Meridian Digital Services is a fictional company. In the scenario, its reporting worker reads customer records and creates reports, logs, and exports. The target was an already running Ubuntu server with that workload installed. I was not building a clean server from scratch.
+Meridian Digital Services is a fictional company. Its reporting worker reads customer records and creates reports, logs, and exports. The Ubuntu server hosting that service was already running when my investigation began; I was not building a clean server from scratch.
 
-An AI-assisted induction package was prepared to seed deliberately unsafe settings and leave the specific findings for me to investigate. The exercise models a DevSecOps risk: generated setup code can leave a system exposed when nobody reviews the resulting configuration. The archive I transferred says it had not been deployed, and its one-adapter preflight conflicts with the saved admin-VM settings. The evidence therefore does not establish that this exact ZIP seeded the target. I investigated the unsafe state observed on the server; its original provisioning command or package version is not preserved. This was a controlled simulation on my laptop in VirtualBox, not a real breach. The records and report output were synthetic.
+My task was to investigate the existing server, identify risks to the reporting service and its data, and apply proportionate fixes while keeping the service available. The records and report output in this lab were synthetic. This was a controlled exercise on my laptop in VirtualBox, not a real breach.
 
-The main problem was that `customers.csv` had mode `0666`, so local users who could traverse its parent directories could change its contents. The logs and archive also allowed more access than the reporting worker needed. The service used a generic identity and lacked systemd restrictions. I wanted the reporting account to keep the access it needed while ordinary local accounts lost access. An administrator still needed an override through authorized sudo or root access.
-
-That goal shaped the order of my work: I set up the local VirtualBox network, transferred the induction package, established a baseline, investigated actual permissions and service settings, applied focused Ansible changes, and verified both the service and the denied access paths.
-
+I started by setting up the lab and establishing a baseline. I then examined the service and its files, applied focused Ansible changes, and checked whether the service still worked and access was restricted as intended.
 ## 1. I built the lab on my Windows laptop
 
 I ran two Ubuntu Server virtual machines locally in VirtualBox. One was the admin/control server, where I kept Ansible and ran playbooks. The other was the target reporting server. WSL was also available on the same laptop and I used it for SSH and the Lynis transfer; it was not a third VM. The induction ZIP itself was copied from Windows PowerShell, as shown by the command captured in the project conversation.
