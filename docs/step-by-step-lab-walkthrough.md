@@ -4,33 +4,93 @@ Follow the stages in order. Each block names the machine where it runs; the expl
 
 This is a streamlined replay, not a verbatim shell history. Added replication instructions are identified below; original screenshots remain evidence of our original runs.
 
-## 1. Required starting point
+## 1. Build the local VirtualBox lab and establish SSH access
+
+This project was run on one Windows laptop. WSL was the SSH client and two Ubuntu Server VMs ran locally in VirtualBox. The admin VM managed the target; the target was on the isolated lab network.
 
 ~~~text
-Windows → WSL SSH client → mds-admin-01 → mds-ubuntu-server-01
-                          Ansible         reporting workload
+Windows laptop
+├── WSL: SSH client
+│   └── management connection to mds-admin-01 (192.168.56.101)
+└── VirtualBox
+    ├── mds-admin-01: Ansible control node
+    │   ├── management side reachable from WSL
+    │   └── lab side connected to the isolated internal network
+    └── mds-ubuntu-server-01: target (192.168.77.10)
+        └── connected to the same isolated internal network
 ~~~
 
-Two Ubuntu server VMs separate management from the workload. WSL is the workstation entry point. The admin VM connects to the target over the isolated VirtualBox lab network, reflecting remote server administration.
+The addresses show two paths: WSL reached the admin VM at 192.168.56.101, and Ansible on the admin VM reached the target at 192.168.77.10. The target was managed through the admin VM. This kept the workload in a local lab and separated the management entry point from the server being assessed.
 
-| Machine | Lab address | Prerequisites |
-| --- | --- | --- |
-| WSL | Workstation | Git, tar, SSH/SCP and an existing key for the admin VM |
-| Admin VM | 192.168.56.101 from WSL | Git, Ansible, SSH access and a key for the target |
-| Target VM | 192.168.77.10 from admin | systemd, Python 3, sudo and the existing reporting workload |
+### Set the VirtualBox network
 
-The SSH account is **mdsadmin**, with sudo access on the target. Our lab used Ansible Core 2.20.1 and Lynis 3.1.7.
+These are repeat instructions for the lab design, not a transcript of the original mouse clicks. The exact VirtualBox adapter names and internal-network name were not preserved.
 
-**Replication boundary:** the playbooks remediate an existing server. They do not create VMs, networking, SSH keys, Ansible installation or the original insecure workload. The target must already contain:
+1. Power off both Ubuntu VMs before changing their network adapters.
+2. In VirtualBox Manager, open each VM's **Settings → Network**.
+3. Keep the admin VM's management connection that makes 192.168.56.101 reachable from WSL. Give the admin VM a separate adapter attached to a named **Internal Network** for its connection to the target.
+4. Attach the target VM's lab adapter to that same Internal Network name. Keep the target off a bridged or direct host-facing connection; route its management traffic through the admin VM.
+5. Start both VMs and check their addresses and routes:
+
+~~~sh
+# On the admin VM
+ip -br address
+ip route
+
+# On the target VM
+ip -br address
+ip route
+~~~
+
+ip -br address lists interfaces and assigned addresses concisely; ip route shows where traffic can go. Confirm WSL can reach the admin's management address and the admin can reach the target's internal address. The target should not have an unintended route that bypasses the lab design.
+
+The recorded addresses do not preserve every VirtualBox adapter setting, so match the paths above to your VM configuration rather than assuming a specific adapter number. The important separation is that the target is reached through the admin/control VM on the lab network.
+
+### Use SSH keys for each hop
+
+The recorded SCP operations show two existing private keys: one on WSL for the admin VM and one on the admin VM for the target. These login commands make those two hops explicit:
+
+~~~sh
+# In WSL: connect to the admin VM
+ssh -i ~/.ssh/mds_admin_ed25519 mdsadmin@192.168.56.101
+
+# In the admin VM: connect to the target
+ssh -i ~/.ssh/mds_target_ed25519 mdsadmin@192.168.77.10
+~~~
+
+-i selects the private key for that hop; the username and address identify the remote account and VM. Keep each private key on the machine that uses it. At the first connection, verify the host key fingerprint using the VM console before accepting it. The exact original key-generation, public-key installation and host-fingerprint commands were not preserved; these connection commands are based on the later successful SCP commands.
+
+**SSH scope clarification:** SSH was configured as the management transport and the key-based transfers worked. We did not harden sshd settings in Project 1a: no SSH authentication policy, root-login setting, SSH port or firewall rule was changed here. SSH and firewall hardening were deferred to the separate proactive cloud project. Do not describe Project 1a as having hardened SSH.
+
+### AI-generated vulnerable workload archive
+
+The assessment began with an existing, deliberately insecure reporting workload. The project description records that an AI-assisted script provisioned the fictional findings for investigation. The exact ZIP file, filename, checksum, and original extraction/deployment command are not present in this repository or the local project files I could inspect. The Lynis archive in the next stage is a different file; it contains the audit tool, not the vulnerable workload.
+
+The commands below are the documented Lynis transfer pattern, not confirmed historical commands for the missing AI ZIP. Once the original archive is available, replace the filename and record its real checksum:
+
+~~~sh
+# WSL: fingerprint the exact archive and copy it to the admin VM
+sha256sum <AI-generated-workload.zip>
+scp -i ~/.ssh/mds_admin_ed25519 <AI-generated-workload.zip> mdsadmin@192.168.56.101:~/
+
+# Admin VM: compare the checksum, then copy the same archive to the target
+sha256sum ~/AI-generated-workload.zip
+scp -i ~/.ssh/mds_target_ed25519 ~/AI-generated-workload.zip mdsadmin@192.168.77.10:~/
+
+# Target: compare again before extracting or running anything
+sha256sum ~/AI-generated-workload.zip
+~~~
+
+The angle-bracket filename is a placeholder, so these lines are a template until the actual ZIP name is known. The original extraction command and deployment command must be added from the real archive's instructions or session history. I did not substitute the separate induction package in this project: its local notes say it was not deployed on these VMs.
+
+The playbooks require an already provisioned target. They do not create VMs, network adapters, SSH keys, Ansible installation or the initial workload. The target must contain:
 
 - The systemd unit **mds-reports.service**.
 - Directories **/srv/mds/records**, **/srv/mds/logs** and **/srv/mds/archive**.
 - Synthetic files **customers.csv**, **application.log** and **export.csv** in those respective directories.
 - Parent-directory traversal permissions that allow the reporting identity to reach its files.
 
-The hidden provisioning script is not included. Fresh VMs need an equivalent synthetic workload prepared first; this repository does not yet reproduce that initial provisioning.
-
-All three playbooks assert the target IP **192.168.77.10**. If yours differs, update both the inventory and the assertions in every playbook. The account names and paths also describe this specific lab.
+All three playbooks assert the target IP **192.168.77.10**. If yours differs, update both the inventory and the assertions in every playbook. The account names and paths describe this specific lab.
 
 ## 2. Obtain and transfer Lynis
 
