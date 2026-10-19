@@ -40,7 +40,7 @@ AI also helped draft and explain parts of the remediation. I checked the command
 
 ### A concrete before/after
 
-The lab began with `/srv/mds/records/customers.csv` owned by root and mode `0666`: any local user could write to it. Ansible changed it to `mds-reports:mds-reports` and `0600`. Verification showed the reporting identity could read and write, while ordinary `mdsadmin` access checks were denied. Administrative override remained possible through controlled sudo/root access.
+The lab began with `/srv/mds/records/customers.csv` owned by root and mode `0666`: its mode permitted writing by any local user able to traverse the parent directories. Ansible changed it to `mds-reports:mds-reports` and `0600`. Verification showed the reporting identity could read and write, while ordinary `mdsadmin` access checks were denied. Administrative override remained possible through controlled sudo/root access.
 
 The original reporting unit also used permissive settings such as `UMask=0000`, `NoNewPrivileges=no`, and no systemd filesystem protections. The Ansible drop-in changed the effective service settings while keeping it active. `ReadWritePaths` allowed the worker's records, logs and archive locations under `ProtectSystem=strict`.
 
@@ -48,15 +48,16 @@ The original reporting unit also used permissive settings such as `UMask=0000`, 
 
 ### Initial run
 
-The first Ansible run installed and started the synthetic worker, produced its report, and passed both ordinary-admin denial checks. It completed with `ok=10 changed=3 failed=0`.
+The first mock-worker playbook run installed and started the synthetic worker, produced its report, and passed both ordinary-admin denial checks. It completed with `ok=10 changed=3 failed=0`.
 
 ![First successful mock-worker run](evidence/mock-worker-run.png)
 
 ### Idempotent rerun
 
-The second run verified the same output and access controls with `changed=0`, showing Ansible found the target already in the requested state. The text transcript is available [here](evidence/mock-worker-idempotent-run.txt).
+The second run checked the report and access controls again with `changed=0`, showing Ansible found the target already in the requested state. An abridged terminal record is available [here](evidence/mock-worker-idempotent-run.txt).
 
 ![Idempotent mock-worker rerun](evidence/mock-worker-idempotent-run.png)
+
 - [Hardening verification record](evidence/hardening-verification.md): captured lab versions, current service properties, file permissions, and successful playbook summaries.
 - [Findings and remediation record](docs/findings-and-remediation.md): evidence, risk, control, verification, and scope decisions for each finding.
 - The published playbooks were copied from `mds-admin-01` as separate YAML files after their SHA-256 checksums were matched. The earlier preflight-only draft remains outside this repository.
@@ -69,6 +70,7 @@ The [full lab walkthrough](docs/step-by-step-lab-walkthrough.md) follows the wor
 
 ```text
 README.md                         This case study, architecture and run instructions
+.gitignore                        Excludes live inventory and local credential files
 docs/findings-and-remediation.md  Evidence-to-control record
 docs/step-by-step-lab-walkthrough.md Commands and full lab sequence
 evidence/                         Sanitized verification output and two screenshots
@@ -102,4 +104,6 @@ These playbooks change the lab target. Read each task before running it, confirm
 
 This is **Project 1a: reactive Linux hardening**. Lynis supported the baseline investigation, but its aggregate score is not used as the measure of success; it covers many checks outside this exercise. The direct permission, systemd, service and idempotence evidence supports the narrower claims above. SSH and firewall hardening, auditd and a production reporting application were **not** completed in this project. Project 1b is planned as a separate, proactive cloud-server hardening exercise.
 
-The synthetic worker proves that a constrained process can write its required outputs in this lab. It does not establish production readiness for a real reporting application.
+The synthetic worker demonstrates archive and log writes in this lab. Customer-file checks use the account outside the service's filesystem namespace; the worker does not process customer data. The current mock verification checks report existence and service activity, not report freshness on every run. Parent-directory deletion permissions and out-of-scope write denial inside the service have not been demonstrated by the published tests.
+
+The playbooks and evidence support a focused Linux-hardening case study. A clean-VM replay, automated CI checks and production readiness have not been established. See the [review and remaining work](docs/portfolio-review.md) for the precise validation limits.
