@@ -12,17 +12,17 @@ Adapter 1 was attached to NAT but disabled. Adapter 2 was enabled as a Host-only
 
 ![Admin VM Adapter 3: mds-sec-lab internal network](virtualbox-admin-internal-network.png)
 
-The host-only adapter provided the management path from Windows/WSL to the admin VM at `192.168.56.101`. The internal adapter connected the admin VM to the target-side lab network; the project records the admin's internal address as `192.168.77.20`.
+The host-only adapter provided the management path to the admin VM at 192.168.56.101. The internal adapter placed the admin VM on the target-side lab network. The induction archive expects the control node to use 192.168.77.20, but the adapter screenshots do not confirm that guest address.
 
 ## Target VM: `mds-ubuntu-server-01`
 
-Adapter 1 was attached to NAT but disabled. Adapter 2 was enabled on the same `mds-sec-lab` Internal Network as the admin VM. The project records the target address as `192.168.77.10`.
+Adapter 1 was attached to NAT but disabled. Adapter 2 was enabled on the same mds-sec-lab Internal Network as the admin VM. The Ansible inventory records the target address as 192.168.77.10; the adapter screenshots do not display the guest address.
 
 ![Target VM Adapter 1: NAT disabled](virtualbox-target-nat-disabled.png)
 
 ![Target VM Adapter 2: mds-sec-lab internal network](virtualbox-target-internal-network.png)
 
-This leaves the target attached to the internal lab network, without a VirtualBox NAT or host-only adapter. It was reachable from the admin VM on the lab network, while the laptop's host-only connection terminated at the admin VM.
+The screenshots show the target's Adapter 2 on the internal lab network and its NAT Adapter 1 disabled. They do not show Adapters 3 or 4, so the complete target adapter configuration cannot be inferred from these images. The host-only management adapter shown on the admin VM separated the laptop-to-admin path from the pictured VM-to-VM segment.
 
 ## Relationship to the induction ZIP
 

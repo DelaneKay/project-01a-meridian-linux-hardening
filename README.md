@@ -15,14 +15,14 @@ My Windows laptop
 └── VirtualBox                                        ↓
     ├── mds-admin-01: Ansible control node
     │   ├── Host-only adapter: 192.168.56.101
-    │   └── Internal Network "mds-sec-lab": 192.168.77.20
+    │   └── Internal Network mds-sec-lab (archive expects .77.20; guest IP unverified)
     └── mds-ubuntu-server-01: target
         └── Internal Network "mds-sec-lab": 192.168.77.10
 ```
 
 I built and ran this entire lab locally on my laptop using VirtualBox for the **two Ubuntu server VMs**: the admin server and the target. WSL ran on the same Windows laptop and was used for the Lynis transfer and SSH work; it was not a third VM. The induction ZIP was copied from the Windows Downloads folder to the admin VM using Windows PowerShell's OpenSSH `scp` command. The admin VM held the Ansible inventory and ran the playbooks against the target VM. The target hosted the reporting service and synthetic data.
 
-This separation mirrors a common operational pattern: engineers work from a workstation or management host, while configuration automation connects to managed servers over SSH. It also meant I could validate the target from a separate control node, keep the automation off the workload host, and check that management access and the service survived each change. The VirtualBox internal network kept the exercise isolated; its addresses are lab-only. The detailed VirtualBox and SSH access setup is in the step-by-step walkthrough. Project 1a used SSH to manage the target, but did not change sshd hardening settings.
+This topology placed target-side traffic on a named VM-to-VM segment, while the admin VM also had a host-only management adapter. The screenshots document adapter attachments but do not establish guest routing or complete egress isolation; all addresses are lab-only.
 
 ## The scenario and the role of AI
 

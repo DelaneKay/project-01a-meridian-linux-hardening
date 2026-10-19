@@ -24,18 +24,18 @@ Windows laptop
     ├── mds-admin-01: Ansible control server
     │   ├── Adapter 1: NAT disabled
     │   ├── Adapter 2: Host-only, 192.168.56.101
-    │   └── Adapter 3: Internal Network "mds-sec-lab", 192.168.77.20
+    │   └── Adapter 3: Internal Network mds-sec-lab (archive expects .77.20; guest IP unverified)
     └── mds-ubuntu-server-01: target
         ├── Adapter 1: NAT disabled
-        └── Adapter 2: Internal Network "mds-sec-lab", 192.168.77.10
+        └── Adapter 2: Internal Network mds-sec-lab (target inventory address: .77.10)
 ~~~
 
-The [VirtualBox network evidence](../evidence/virtualbox-network.md) contains the screenshots behind this layout. The admin VM used its host-only adapter as the management path from Windows/WSL; its `mds-sec-lab` adapter connected to the target. The target was attached only to the same Internal Network. The NAT adapters were disabled on both VMs. The project records the host-only admin address as `192.168.56.101`, the internal control-node address as `192.168.77.20`, and the target as `192.168.77.10`. This explains the two admin addresses: the host-only interface handled laptop management, while the internal interface carried traffic to the target.
+The [VirtualBox network evidence](../evidence/virtualbox-network.md) contains the screenshots behind this layout. They show the admin VM using Adapter 2 as a host-only adapter and Adapter 3 on mds-sec-lab; Adapter 1 (NAT) is disabled. The host-only address used to reach the admin was 192.168.56.101. The target screenshots show Adapter 1 (NAT) disabled and Adapter 2 on the same internal network; they do not show target Adapters 3 or 4, so I cannot claim those were disabled. The target address 192.168.77.10 is in the Ansible inventory. The value 192.168.77.20 appears as the control-node address expected by the induction archive, but the VirtualBox screenshots do not verify that guest address.
 
-The screenshots establish VirtualBox adapter settings, but not guest routes or IP forwarding. The induction package's preflight was designed to check the control node's addresses, routes, and forwarding state. Its isolation notes also called for disabled target shared folders, shared clipboard, and drag-and-drop. The full preflight output and exact manual network-check commands were not preserved.
+The screenshots establish adapter attachments, but not guest routes, IP forwarding, or the state of VirtualBox shared folders, clipboard, and drag-and-drop. The induction package preflight was designed to check network state; the full preflight output and exact manual network-check commands were not preserved.
 
 The package's single-adapter assumption conflicts with the screenshots: the admin VM had two enabled adapters, host-only and internal. If this was the active configuration when the package was run, its preflight would have stopped before calling Ansible. I record that conflict rather than claim the package accepted this topology.
-The screenshots preserve the adapter configuration; they do not show every VirtualBox setting or prove guest-level routing and forwarding state.
+The screenshots preserve only the displayed adapter settings; they do not show every adapter or VirtualBox setting, or prove guest-level routing and forwarding state.
 
 ## 2. I established SSH access and transferred the induction package
 
