@@ -1,279 +1,267 @@
-# Step-by-step lab walkthrough
+# Replicate the Meridian Linux hardening exercise
 
-This is a record of the Meridian Linux hardening exercise from lab preparation through evidence collection. Meridian and its customer records are fictional; all report content was synthetic. The two Ubuntu VMs were an admin/control node and a target. WSL was the workstation's SSH client to the admin VM.
+Follow the stages in order. Each block names the machine where it runs; the explanation beneath it covers every command. Related commands are grouped to reduce repetition. Check the result before moving on.
 
-## Lab layout
+This is a streamlined replay, not a verbatim shell history. Added replication instructions are identified below; original screenshots remain evidence of our original runs.
 
-```text
-Windows workstation
-└── WSL (SSH client)
-    └── mds-admin-01 (Ansible control node)
-        └── SSH on the isolated VirtualBox lab network
-            └── mds-ubuntu-server-01 (reporting service target)
-```
+## 1. Required starting point
 
-Keeping the control node separate from the workload mirrors how an engineer or automation runner manages remote hosts. It means Ansible and its inventory live on a management system, while SSH connects to the target. The isolated VirtualBox network limits exposure while practicing changes that would affect a real service.
+~~~text
+Windows → WSL SSH client → mds-admin-01 → mds-ubuntu-server-01
+                          Ansible         reporting workload
+~~~
 
-## 1. Check the WSL tools and obtain Lynis
+Two Ubuntu server VMs separate management from the workload. WSL is the workstation entry point. The admin VM connects to the target over the isolated VirtualBox lab network, reflecting remote server administration.
 
-From WSL, check that the tools used to obtain the source are available:
+| Machine | Lab address | Prerequisites |
+| --- | --- | --- |
+| WSL | Workstation | Git, tar, SSH/SCP and an existing key for the admin VM |
+| Admin VM | 192.168.56.101 from WSL | Git, Ansible, SSH access and a key for the target |
+| Target VM | 192.168.77.10 from admin | systemd, Python 3, sudo and the existing reporting workload |
 
-```sh
-command -v git curl
-```
+The SSH account is **mdsadmin**, with sudo access on the target. Our lab used Ansible Core 2.20.1 and Lynis 3.1.7.
 
-The recorded output resolved both commands under `/usr/bin`. Clone the fixed Lynis release used for the assessment:
+**Replication boundary:** the playbooks remediate an existing server. They do not create VMs, networking, SSH keys, Ansible installation or the original insecure workload. The target must already contain:
 
-```sh
+- The systemd unit **mds-reports.service**.
+- Directories **/srv/mds/records**, **/srv/mds/logs** and **/srv/mds/archive**.
+- Synthetic files **customers.csv**, **application.log** and **export.csv** in those respective directories.
+- Parent-directory traversal permissions that allow the reporting identity to reach its files.
+
+The hidden provisioning script is not included. Fresh VMs need an equivalent synthetic workload prepared first; this repository does not yet reproduce that initial provisioning.
+
+All three playbooks assert the target IP **192.168.77.10**. If yours differs, update both the inventory and the assertions in every playbook. The account names and paths also describe this specific lab.
+
+## 2. Obtain and transfer Lynis
+
+**In WSL:**
+
+~~~sh
+command -v git tar ssh scp
 git clone --depth 1 --branch 3.1.7 https://github.com/CISOfy/lynis.git ~/lynis-3.1.7
-```
-
-The `--depth 1` option fetches only the selected revision's recent history, and `--branch 3.1.7` selects the version assessed in the lab.
-
-Prepare and checksum the archive before transfer:
-
-```sh
 tar -czf ~/lynis-3.1.7.tar.gz -C ~ lynis-3.1.7
 sha256sum ~/lynis-3.1.7.tar.gz
-```
-
-The clone, checksum and transfers were recorded in the lab. The exact original archive-creation command was not preserved; the `tar` line above is a reproducible equivalent. The recorded SHA-256 was:
-
-```text
-c0808d6b9e9a784ba912a32b2b43052d57ce0a2a2741735194969a3021ab739e
-```
-
-Transfer the archive to the admin VM using the existing SSH key:
-
-```sh
 scp -i ~/.ssh/mds_admin_ed25519 ~/lynis-3.1.7.tar.gz mdsadmin@192.168.56.101:~/
-```
+ssh -i ~/.ssh/mds_admin_ed25519 mdsadmin@192.168.56.101
+~~~
 
-On `mds-admin-01`, compare its checksum with the WSL result. Then transfer it to the target with the target's existing key:
+**Why:** command -v locates the required tools. Git fetches release 3.1.7 with limited history. Tar creates one compressed archive; -C makes its paths relative to your home directory. SHA-256 provides a fingerprint for transfer checks. SCP copies it using the specified key; SSH opens the admin session. Substitute your existing key filenames if different.
 
-```sh
+The exact original packaging command was not preserved; this tar command is a replication equivalent. **Compare your own archive's hash across machines.** A fresh archive may differ from ours because of timestamps or Git metadata. Our original hash was:
+
+~~~text
+c0808d6b9e9a784ba912a32b2b43052d57ce0a2a2741735194969a3021ab739e
+~~~
+
+**On the admin VM:**
+
+~~~sh
 sha256sum ~/lynis-3.1.7.tar.gz
 scp -i ~/.ssh/mds_target_ed25519 ~/lynis-3.1.7.tar.gz mdsadmin@192.168.77.10:~/
-```
+ssh -i ~/.ssh/mds_target_ed25519 mdsadmin@192.168.77.10
+~~~
 
-On the target, compare the checksum again before extracting or using the archive. Matching hashes confirm that the same archive arrived at each machine.
+**Why:** check the admin copy against the WSL fingerprint, transfer it using the target key held on the admin VM, then open the target session.
 
-## 2. Run Lynis on the existing target
+**On the target:**
 
-The first version check was attempted from the wrong path and returned “can't find include directory.” Lynis must run from its extracted program directory so it can find its support files. The working directory used for the assessment was:
+~~~sh
+sha256sum ~/lynis-3.1.7.tar.gz
+~~~
 
-```sh
+**Checkpoint:** all three hashes for your archive must match before extraction. Matching hashes detect transfer differences; they do not independently authenticate the upstream source.
+
+## 3. Install Lynis and preserve a baseline
+
+**On the target.** This installation block is a reconstruction for a new lab; the original extraction/copy commands were not captured. If **/opt/lynis-3.1.7** already exists from this exercise, inspect it and skip extraction and ownership changes.
+
+~~~sh
+tar -tzf ~/lynis-3.1.7.tar.gz
+sudo tar --no-same-owner -xzf ~/lynis-3.1.7.tar.gz -C /opt
+sudo chown -R root:root /opt/lynis-3.1.7
+sudo chmod -R go-w /opt/lynis-3.1.7
+ls -ld /opt /opt/lynis-3.1.7 /opt/lynis-3.1.7/include/functions
 cd /opt/lynis-3.1.7
 ./lynis show version
 sudo ./lynis audit system --quick
-```
+~~~
 
-The version command returned `3.1.7`. The first privileged scan from a user-owned copy stopped at Lynis's ownership safety check. We moved to a root-owned installation under `/opt/lynis-3.1.7`, then ran the scan from there. This guard exists to avoid root executing files a less-privileged user could alter.
+**Why:** first list the archive and confirm its top-level directory is **lynis-3.1.7/**. The next command extracts it into /opt without retaining archived ownership. Chown explicitly sets root ownership; chmod removes group/other write permission while preserving executable bits. Ls checks metadata. Cd ensures this Lynis release finds its support files; the version command should print 3.1.7. The privileged audit inspects system configuration, with --quick avoiding normal pauses.
 
-Lynis helped identify areas to inspect. Its score was not used as the project's success measure: the work focused on direct findings, the resulting configuration, and access tests.
+After the scan, save its baseline before another audit overwrites the active logs:
 
-## 3. Preserve the baseline report
-
-The scan created `/var/log/lynis.log` and `/var/log/lynis-report.dat`. The recorded copy command was:
-
-```sh
-sudo cp -n /var/log/lynis.log /var/log/lynis-report.dat /root/mds-audit-baseline/
-```
-
-GNU `cp` printed a portability warning for `-n`. For a new run, use its suggested spelling:
-
-```sh
+~~~sh
+sudo install -d -m 0700 /root/mds-audit-baseline
 sudo cp --update=none /var/log/lynis.log /var/log/lynis-report.dat /root/mds-audit-baseline/
-```
-
-Compare source and saved copies:
-
-```sh
 sudo sha256sum /var/log/lynis.log /root/mds-audit-baseline/lynis.log /var/log/lynis-report.dat /root/mds-audit-baseline/lynis-report.dat
-```
+~~~
 
-The hash pairs matched in the lab. The baseline was kept separate so later changes would not overwrite the original assessment evidence.
+**Why:** install creates a root-only evidence directory. Copy preserves existing baseline files. SHA-256 verifies each original/saved pair on the first capture. If a baseline already exists, different hashes may mean a newer scan is being compared with older evidence. We originally used cp -n; the spelling above follows the warning printed by that system.
 
-## 4. Check the Ansible playbook before applying it
+Inspect the workload too:
 
-On `mds-admin-01`, work from the Ansible directory and syntax-check the service hardening playbook:
+~~~sh
+sudo systemctl cat mds-reports.service
+sudo stat -c '%A %a %U:%G %n' /srv/mds/records/customers.csv /srv/mds/logs /srv/mds/logs/application.log /srv/mds/archive /srv/mds/archive/export.csv
+~~~
 
-```sh
-cd ~/mds-devsecops/ansible
-ansible-playbook -i inventory/hosts.ini harden.yml --syntax-check
-```
+**Why:** systemctl shows the unit and drop-ins. Stat shows symbolic/numeric permissions, ownership and filenames together. This consolidated block replaces several historical checks. Record your own starting state: the scanner does not establish the application's access requirements.
 
-The syntax check returned `playbook: harden.yml`. It checks that Ansible can parse the YAML; it does not connect to the target or prove that tasks work.
+Our starting state included customer records and an application log at **0666**, an archive directory at **0777**, and a service using **nobody:nogroup** with permissive systemd settings. See [findings and remediation](findings-and-remediation.md).
 
-The inventory points to the intended target at `192.168.77.10`. Each playbook also asserts the target address and SSH connection before continuing.
+## 4. Prepare the repository and inventory
 
-## 5. Create the service identity and restrict customer records
+Return from the target SSH session to the **admin VM**:
 
-Run the first remediation playbook:
+~~~sh
+exit
+~~~
 
-```sh
-ansible-playbook -i inventory/hosts.ini harden.yml --ask-become-pass
-```
+**Why:** configuration automation runs on the control node. Confirm the prompt now shows **mds-admin-01**.
 
-`--ask-become-pass` prompts for the sudo password when Ansible needs administrative rights. The password is entered at the prompt and is not stored in the command or repository.
+For a new checkout, run on the admin VM:
 
-The playbook creates `mds-reports` as a non-login system account, configures the systemd service to run under it, adds process and filesystem restrictions, and changes `customers.csv` from world-writable `0666` to owner-only `0600`. It then tests that the reporting identity can read and write the file and that ordinary `mdsadmin` access is denied.
+~~~sh
+git clone https://github.com/DelaneKay/project-01a-meridian-linux-hardening.git
+cd project-01a-meridian-linux-hardening/ansible
+cp inventory/hosts.ini.example inventory/hosts.ini
+nano inventory/hosts.ini
+~~~
 
-The output showed the service identity, override and handler tasks completed successfully. The later access-check run reported each positive and negative check as `ok`.
+**Why:** clone obtains the playbooks; cd enters their directory; cp makes a working inventory; nano lets you replace **REPLACE_WITH_YOUR_TARGET_KEY** with the target-key filename on the admin VM. Confirm the SSH user and address too. Save with Ctrl+O, Enter; exit with Ctrl+X. Repository access is needed while this repository is private. Never insert private-key contents or passwords into the inventory.
 
-## 6. Restrict logs and archive files
+These are new replication setup instructions. Our original files already lived under **~/mds-devsecops/ansible**. Use that directory instead if continuing the original lab; do not overwrite an existing inventory.
 
-Run the separate data-files playbook:
+Check the controller, connection, privilege escalation and YAML together:
 
-```sh
-ansible-playbook -i inventory/hosts.ini data-files.yml --ask-become-pass
-```
+~~~sh
+ansible --version
+ansible -i inventory/hosts.ini mds-ubuntu-server-01 -m ansible.builtin.ping
+ansible -i inventory/hosts.ini mds-ubuntu-server-01 -b --ask-become-pass -m ansible.builtin.command -a "id"
+ansible-playbook -i inventory/hosts.ini harden.yml data-files.yml mock-worker.yml --syntax-check
+~~~
 
-This playbook adds the log and archive paths to the service's allowed writable paths under `ProtectSystem=strict`. It gives the reporting account ownership of both directories with mode `0700` and protects the log and export files with mode `0600`.
+**Why:** the first command identifies the installed version. Ansible ping tests SSH and remote Python, not ICMP. The privileged id command should show root, proving sudo works. The last command parses all three playbooks before mutation. These connectivity checks are added replication prerequisites, not claimed original terminal captures.
 
-The first run changed the requested paths. A later run reported `changed=0`, showing that Ansible found them already in the requested state.
+| Option | Purpose |
+| --- | --- |
+| -i | Select the inventory file. |
+| -m | Select an Ansible module for an ad-hoc task. |
+| -a | Supply that module's arguments. |
+| -b | Become the privileged user, root by default. |
+| --ask-become-pass | Prompt for the target sudo password. |
+| --syntax-check | Parse the playbooks without applying them; this does not prove runtime success. |
 
-## 7. Install and verify the synthetic reporting worker
+**Checkpoint:** ping returns pong, sudo succeeds, and syntax checks pass.
 
-Run the mock-worker playbook:
+## 5. Apply all three playbooks in order
 
-```sh
-ansible-playbook -i inventory/hosts.ini mock-worker.yml --ask-become-pass
-```
+**On the admin VM, from the same Ansible directory:**
 
-The playbook installs a small Python worker that writes a clearly labelled synthetic report and a log entry, configures systemd to run it, waits for output, checks the service is active, and confirms ordinary `mdsadmin` cannot read or write the report. The original placeholder service command was `/usr/bin/sleep infinity`; the playbook replaces it with this lab worker.
+~~~sh
+ansible-playbook -i inventory/hosts.ini harden.yml data-files.yml mock-worker.yml --ask-become-pass
+~~~
 
-The first run finished with `ok=10 changed=3 failed=0`. The second run finished with `ok=9 changed=0 failed=0`. Both outputs and screenshots are saved under `evidence/`.
+**Why:** Ansible runs the named playbooks in order with one sudo-password prompt. This groups the separate commands used during development; the YAML files remain separate for review and reuse. Investigate failed/unreachable results before continuing.
 
-## 8. Verify the effective service and file state
+| Playbook | What it achieves and why |
+| --- | --- |
+| [harden.yml](../ansible/harden.yml) | Creates the non-login mds-reports identity, applies systemd limits, gives it ownership of customers.csv at 0600, and tests service-account access and ordinary-admin denial. |
+| [data-files.yml](../ansible/data-files.yml) | Restricts log/archive directories to 0700 and their existing files to 0600, owned by mds-reports, and permits these service write paths. |
+| [mock-worker.yml](../ansible/mock-worker.yml) | Replaces the sleep infinity placeholder with a Python worker that updates a synthetic report and log every 60 seconds, then checks output, service state and ordinary-admin denial. |
 
-These read-only Ansible commands were used from the control node:
+The file module's **state: file** does not create missing data files. That is why the workload prerequisites matter.
 
-```sh
-ansible -i inventory/hosts.ini mds-ubuntu-server-01 -m ansible.builtin.command -a "systemctl is-active mds-reports.service"
-ansible -i inventory/hosts.ini mds-ubuntu-server-01 -m ansible.builtin.command -a "systemctl show mds-reports.service -p User -p Group -p UMask -p NoNewPrivileges -p PrivateTmp -p ProtectSystem -p ProtectHome -p ReadWritePaths"
-ansible -i inventory/hosts.ini mds-ubuntu-server-01 -m ansible.builtin.command -a "stat -c %A:%a:%U:%G:%n /srv/mds/records/customers.csv /srv/mds/logs /srv/mds/archive"
-```
+| Systemd setting | Purpose and limit |
+| --- | --- |
+| User/Group=mds-reports | Run with a dedicated identity whose file access can be scoped. |
+| NoNewPrivileges=true | Prevent privilege gains through execution, such as setuid programs. It does not remove existing file-write permission. |
+| UMask=0027 | Remove group write and all other-user bits from newly created files/directories. It does not change existing modes or guarantee 0600 by itself. |
+| PrivateTmp=true | Give the service private /tmp and /var/tmp views. |
+| ProtectSystem=strict | Make most filesystem paths read-only in the service's mount namespace. |
+| ProtectHome=true | Hide home directories from the service. |
+| ReadWritePaths | Allow selected paths within that read-only view; ownership and modes still govern access. |
 
-The service returned `active`. The effective properties showed `User=mds-reports`, `Group=mds-reports`, `UMask=0027`, `NoNewPrivileges=yes`, `PrivateTmp=yes`, `ProtectSystem=strict`, `ProtectHome=yes`, and writable paths limited to records, logs and archives. The customer file was `600`; log and archive directories were `700`, all owned by `mds-reports`.
+The two writable-path drop-ins accumulate records, logs and archives because neither resets the list. A handler reloads systemd and restarts the service after configuration changes. The mock-worker playbook flushes its handler before checking output.
 
-To run a `runuser` access check through Ansible, the remote command needs administrative privilege because `runuser` is restricted to root on this target. Include `-b --ask-become-pass`; without it, the command either failed with “may not be used by non-root users” or Ansible asked for a missing become password. A successful `test -r` or `test -w` prints no text; use its return code: `0` means allowed, `1` means the permission check was denied.
+## 6. Verify the result and repeat for idempotence
 
-## 9. Troubleshooting and verification steps recorded during the work
+**On the admin VM:**
 
-These checks explain several detours that are easy to miss if we show only the final successful runs.
+~~~sh
+ansible -i inventory/hosts.ini mds-ubuntu-server-01 -m ansible.builtin.command -a "systemctl show mds-reports.service -p ActiveState -p User -p Group -p UMask -p NoNewPrivileges -p PrivateTmp -p ProtectSystem -p ProtectHome -p ReadWritePaths"
+ansible -i inventory/hosts.ini mds-ubuntu-server-01 -b --ask-become-pass -m ansible.builtin.command -a "stat -c '%A %a %U:%G %n' /srv/mds/records/customers.csv /srv/mds/logs /srv/mds/logs/application.log /srv/mds/archive /srv/mds/archive/export.csv /srv/mds/archive/mock-report.txt"
+ansible-playbook -i inventory/hosts.ini harden.yml data-files.yml mock-worker.yml --ask-become-pass
+~~~
 
-### Check whether Lynis was installed as a package
+**Why:** systemctl reads effective settings after combining all drop-ins. Privileged stat can inspect files inside the private directories. The repeat playbook run checks convergence: when the desired configuration already exists, Ansible should report **changed=0** and avoid configuration-triggered restarts.
 
-On the target, this package query returned “no packages found matching lynis”:
+Expected results:
 
-```sh
-dpkg-query -W lynis
-```
+- Active service, user/group mds-reports, UMask=0027, protections enabled and records/logs/archive in ReadWritePaths.
+- Customer, log, export and mock-report files at 0600; log/archive directories at 0700; ownership mds-reports.
+- Automated checks allow reporting-account access and deny ordinary mdsadmin access to customer records and the mock report.
+- A labelled synthetic report, no failed/unreachable tasks, and no configuration changes on repetition.
 
-That did not mean Lynis was unavailable. We had cloned the 3.1.7 source tree and transferred it ourselves, so it was not registered in the system package database.
+Ad-hoc command tasks can display CHANGED for read-only queries because the module cannot infer their intent. The playbook verification tasks explicitly use **changed_when: false**.
 
-The first attempt to run it by its home-directory path failed with “can't find include directory.” After changing into the program directory, this worked:
+Our separately executed mock-worker runs reported **ok=10 changed=3** initially and **ok=9 changed=0** later. Combined-run task counts will differ; validate outcomes rather than matching those counts.
 
-```sh
-cd ~/lynis-3.1.7
-./lynis show version
-```
+**What this proves:** the mock writes to the archive and log inside the hardened service. Customer-file runuser tests check account permissions outside that service namespace; the mock does not process customer records. Mode 0600 alone also does not prevent deletion by someone with write/search permission on the parent directory.
 
-It printed `3.1.7`. Lynis locates its support files relative to its working directory, which is why running from the correct extracted tree matters.
+## 7. Preserve evidence and describe the scope
 
-### Understand the Lynis ownership guard and inspect the installed tree
+Keep the first successful mock-worker output and the later unchanged run. Our evidence is:
 
-The first privileged audit from the user-owned tree stopped at Lynis's safety prompt. It identified `include/functions` as not root-owned and explained that root should not execute files a less-privileged user can change. We cancelled that run with Ctrl+C rather than bypassing the check.
+- [First-run screenshot](../evidence/mock-worker-run.png): deployment, report generation and denial checks.
+- [Repeat-run screenshot](../evidence/mock-worker-idempotent-run.png): successful verification with changed=0.
+- [Verification record](../evidence/hardening-verification.md) and [findings record](findings-and-remediation.md): supporting state and decisions.
 
-The target showed `/opt` was root-owned:
+You can repeat the target-side Lynis audit from stage 3 after preserving the baseline. Compare relevant findings, rather than treating its broad score as the only success measure. Do not claim every finding was remediated.
 
-```sh
-ls -ld /opt
-```
+This is reactive service/data hardening in a fictional lab. SSH/firewall hardening, auditd and a production reporting application were not completed here. A separate cloud project is planned for proactive hardening.
 
-After the program tree was placed under `/opt/lynis-3.1.7`, these checks showed the tree and main files' ownership and modes:
+## Optional troubleshooting from the original exercise
 
-```sh
-ls -ld /opt/lynis-3.1.7 /opt/lynis-3.1.7/include /opt/lynis-3.1.7/include/functions /opt/lynis-3.1.7/lynis
-```
+| Symptom | Explanation and next action |
+| --- | --- |
+| dpkg-query -W lynis finds no package | It checks package-manager installation; our manually cloned tree was not a registered package. |
+| Missing include directory or ./lynis not found | Change into /opt/lynis-3.1.7 before running it. The ./ prefix refers to the current directory. |
+| Lynis flags user-owned files | We cancelled with Ctrl+C and used a root-owned installation. Stage 3 provides replay preparation. |
+| Missing sudo password or runuser rejects non-root execution | For privileged ad-hoc tasks, supply both -b and --ask-become-pass. The playbooks already set become: true. |
+| Python interpreter discovery warning | It reports remote Python selection. It did not cause our successful runs to fail; investigate if that environment changes. |
+| Rerun only service settings | Add --tags service_runtime to a harden.yml invocation. Use the full initial run so account/data prerequisites are not skipped. |
 
-The observed output showed root ownership, including for `include/functions`. The exact command originally used to place the tree under `/opt` was not preserved, so this guide does not present a guessed copy command as historical fact.
+**Individual permission test, on the admin VM:**
 
-The audit was then run from the installed program directory:
+~~~sh
+ansible -i inventory/hosts.ini mds-ubuntu-server-01 -b --ask-become-pass -m ansible.builtin.command -a "runuser -u mds-reports -- test -w /srv/mds/records/customers.csv"
+~~~
 
-```sh
-cd /opt/lynis-3.1.7
-sudo ./lynis audit system --quick
-```
+**Why:** runuser changes identity, then test -w checks write access without modifying contents. Success is silent with code 0. Substituting mdsadmin should return 1 for denied access; an ad-hoc task calls that failed. The playbook negative checks explicitly require code 1. A privileged administrator still has sudo/root override.
 
-The audit completed and its log recorded a warning about `/etc/sudoers.d`: it was root-owned but mode `0755`, which Lynis considered possibly unsafe. We inspected the finding and left it unchanged pending confirmation of the expected system policy.
+**Process identity, on the target:**
 
-A later search checked ownership and group/world write bits throughout the Lynis tree:
+~~~sh
+systemctl show mds-reports.service -p MainPID -p User -p Group
+~~~
 
-```sh
+**Why:** this retrieves the current PID and configured identity. Substitute that PID into **ps -p PID -o pid,euser,egroup,args** to see the process's effective user, group and command. Our original PID 42826 was temporary and must not be reused blindly.
+
+**Lynis file-ownership investigation, on the target:**
+
+~~~sh
 sudo find /opt/lynis-3.1.7 \( ! -user root -o ! -group root -o -perm /022 \) -print
-```
-
-It listed language symlinks. We inspected them with:
-
-```sh
 ls -l /opt/lynis-3.1.7/db/languages/{en-GB,nl-BE,de-AT,br,nl-NL,en-US}
-```
+~~~
 
-The output showed links to the shared language files (for example, `en-GB -> en`). Symbolic links commonly display mode `777`; that display does not mean the link itself can be made writable in the same way as a regular file. For a follow-up check specifically of regular files, use:
+**Why:** find locates unexpected ownership or group/other write bits. Our results included language symlinks; ls showed their targets. Linux symlink modes commonly display 777 and do not control access to their targets. Add **-type f** after the search path if you specifically want regular files.
 
-```sh
-sudo find /opt/lynis-3.1.7 -type f \( ! -user root -o ! -group root -o -perm /022 \) -print
-```
+**Sudoers-directory investigation, on the target:**
 
-That final `-type f` form is a clearer diagnostic refinement; it was not part of the recorded terminal output.
+~~~sh
+ls -ld /etc/sudoers.d
+sudo grep -n -A 12 -B 4 'possibly unsafe permissions' /var/log/lynis.log
+~~~
 
-### Check the service identity and explain the access-test failures
-
-Before the account existed, a lookup returned no matching user. The Ansible task then created the system account `mds-reports` with a non-login shell. Later, systemd checks confirmed the worker used this account:
-
-```sh
-ansible -i inventory/hosts.ini mds-ubuntu-server-01 -m ansible.builtin.command -a "systemctl is-active mds-reports.service"
-ansible -i inventory/hosts.ini mds-ubuntu-server-01 -m ansible.builtin.command -a "systemctl show mds-reports.service -p User -p Group -p MainPID"
-```
-
-The service was active and systemd reported `User=mds-reports` and `Group=mds-reports`. We then checked the actual process identity using the reported main PID (the number changes after a restart):
-
-```sh
-ansible -i inventory/hosts.ini mds-ubuntu-server-01 -m ansible.builtin.command -a "ps -p 42826 -o pid,euser,egroup,args"
-```
-
-It showed the mock placeholder process running as `mds-reports`. Later, `systemctl cat mds-reports.service` showed both the original unit and its override; reading the combined unit helped explain why the drop-in settings took effect.
-
-The first direct `runuser` checks failed because `runuser` is restricted to root on this target, and some Ansible ad-hoc commands were run without privilege escalation. The working pattern was to add `-b --ask-become-pass`, for example:
-
-```sh
-ansible -i inventory/hosts.ini mds-ubuntu-server-01 -b -m ansible.builtin.command -a "runuser -u mds-reports -- test -w /srv/mds/records/customers.csv" --ask-become-pass
-```
-
-A successful `test` is intentionally silent and returns code 0. A denied permission check returns code 1, which makes Ansible show a direct ad-hoc task as failed. In the playbook, the negative tests explicitly treat return code 1 as the expected result; that is why the final playbook recap is successful when access is denied as intended.
-
-The customer-file state was checked with a command equivalent to:
-
-```sh
-ansible -i inventory/hosts.ini mds-ubuntu-server-01 -m ansible.builtin.command -a "stat -c '%A %a %U:%G %n' /srv/mds/records/customers.csv"
-```
-
-The observed mode and owner were `600 mds-reports:mds-reports`. The final `harden.yml` then automated both the permission change and the positive/negative access tests.
-
-### Apply hardening in small, reviewable stages
-
-During the build, the service runtime changes were also run by tag so that only the matching tasks were selected:
-
-```sh
-ansible-playbook -i inventory/hosts.ini harden.yml --tags service_runtime --ask-become-pass
-```
-
-The final playbooks remain separate: `harden.yml` creates the service identity, applies its systemd restrictions, and protects customer records; `data-files.yml` protects logs and archives; `mock-worker.yml` installs and verifies the synthetic workload. The final end-to-end commands are listed earlier in this guide.
-
-## 9. Record findings and publish the portfolio evidence
-
-The findings record explains the risk, control, and verification for the customer file, service runtime, and data paths. It also records Lynis's `/etc/sudoers.d` warning as reviewed but unresolved; the directory was root-owned and not writable by ordinary accounts, so it was not changed without checking the expected system policy.
-
-The repository contains the three separate playbooks, a credential-free inventory example, the findings record, sanitized command output and both mock-worker screenshots. No SSH private keys, passwords, live inventory, customer data, or hidden provisioning script are included. Project 1a covers reactive Linux hardening; SSH and firewall changes, auditd, and the proactive cloud-server work remain outside this project's completed scope.
+**Why:** ls shows ownership/mode; grep finds warnings with surrounding log lines. This grouped diagnostic reconstructs how to inspect the excerpts discussed in our lab. Our root-owned directory was 0755; the inspected Lynis test expected no other-user permission bits. We documented the warning without changing it. A scanner warning warrants investigation; it does not itself prove that ordinary users can modify sudo policy.
