@@ -30,14 +30,7 @@ This arrangement let me keep the automation on a separate control server and rea
 
 The terminal record shows the admin management address `192.168.56.101` and target address `192.168.77.10`. The induction package's preflight notes expect the control node at `192.168.77.20`. Those addresses describe distinct recorded network roles, but the exact VirtualBox adapter setup and any network transition were not preserved. I have left this discrepancy visible rather than inventing adapter details.
 
-During the investigation I checked the machines' interface and route state with:
-
-~~~sh
-ip -br address
-ip route
-~~~
-
-The first command lists interface addresses; the second shows routes. They helped me reason about whether the target was reachable through the intended lab path. The ZIP's own isolation notes called for a VirtualBox Internal Network, no default route or IP forwarding, and disabled target shared folders, shared clipboard, and drag-and-drop. Those settings reduced the chance that the intentionally weak service or synthetic data could affect anything outside the lab.
+The induction package's preflight was designed to check the control node's addresses, routes, and forwarding state before deployment. Its isolation notes called for a VirtualBox Internal Network, no default route or IP forwarding, and disabled target shared folders, shared clipboard, and drag-and-drop. Those checks and settings reduced the chance that the intentionally weak service or synthetic data could affect anything outside the lab. The full preflight output and the exact manual commands used to inspect network state were not preserved.
 
 The exact VirtualBox mouse-click sequence was not captured. The isolation description above combines the package's recorded design with the addresses visible in the project history.
 
@@ -134,7 +127,7 @@ Lynis raised a separate warning about `/etc/sudoers.d` being root-owned with mod
 
 ## 5. I organized the Ansible remediation as separate playbooks
 
-I kept the work in separate YAML files so each control area was reviewable and could be committed independently to the portfolio repository:
+I kept the work in separate YAML files so each control area remained reviewable and could be documented separately:
 
 - [harden.yml](../ansible/harden.yml) created the non-login `mds-reports` system account, configured the systemd identity and restrictions, changed ownership/mode on `customers.csv`, and checked allowed and denied access.
 - [data-files.yml](../ansible/data-files.yml) restricted the log and archive directories and files, and allowed the reporting service to write to those paths under `ProtectSystem=strict`.
