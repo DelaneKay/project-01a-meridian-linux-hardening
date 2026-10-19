@@ -4,6 +4,17 @@ Follow the stages in order. Each block names the machine where it runs; the expl
 
 This is a streamlined replay, not a verbatim shell history. Added replication instructions are identified below; original screenshots remain evidence of our original runs.
 
+## Scenario: the Meridian reporting server
+
+Meridian Digital Services is a fictional company whose reporting worker reads customer records and creates reports, logs, and exports. For this portfolio lab, the target was an already running Ubuntu server with that reporting workload installed. It was not a clean server build.
+
+An AI-assisted induction package was used to seed the target with a deliberately unsafe starting state, while leaving the specific planted issues for the learner to investigate. This models a realistic DevSecOps concern: automation or generated setup code can leave a system insecure if nobody checks the resulting configuration. It was a controlled simulation in VirtualBox, not a real breach, and all records and report output were synthetic.
+
+The investigation found that the customer CSV was mode `0666`, allowing local users with access through its parent directories to change its contents. Log and archive paths also had broader permissions than the reporting worker needed. The service ran under a generic account and lacked systemd restrictions. The goal was to let the reporting worker do its job while restricting routine local access and retaining an administrator's ability to override access through authorized sudo/root administration.
+
+That is why the walkthrough begins by isolating the two VirtualBox servers, then transfers and checks the induction archive, records the original system state with Lynis and direct Linux checks, and only then applies Ansible changes. The final mock-worker run checks that the service still produces synthetic output and that ordinary-account access is denied; a second Ansible run checks that the changes are repeatable. Lynis helped guide investigation, while the direct checks and successful playbook runs provide the evidence for the specific controls.
+
+
 ## 1. Build the local VirtualBox lab and establish SSH access
 
 This project was run on one Windows laptop. WSL was the SSH client and two Ubuntu Server VMs ran locally in VirtualBox. The admin VM managed the target; the target was on the isolated lab network.
