@@ -1,50 +1,42 @@
-# Portfolio review and remaining work
+# Portfolio review
 
-Reviewed on 2026-10-19 against the repository files and recorded lab evidence.
+Reviewed on 2026-10-19 against the repository contents and lab evidence.
 
 ## Assessment
 
-Suitable as a focused, guided Linux-hardening case study. It demonstrates investigation, least-privilege decisions, Ansible remediation, systemd configuration and repeat-run verification. It is not a complete server-security baseline or a turnkey lab provisioner.
+This is a solid, appropriately scoped portfolio case study for a junior DevSecOps project. It shows investigation of an existing Linux workload, Ansible remediation, systemd hardening, access checks and a repeat run. The environment was your own Windows laptop running WSL and two Ubuntu VMs locally in VirtualBox: one admin/control VM and one target. That is a valid way to build and demonstrate this project; cloud hosting and clean-VM reproduction are not requirements for the story you tell here.
 
-## What was reviewed
+The work is a fictional lab simulation, not a production deployment or a real compromise. The README should describe it that way.
 
-- All three published playbooks and the example inventory.
-- README, walkthrough, findings record and summarized terminal evidence.
-- Repository file tree: both referenced PNG evidence files are present.
-- Relative Markdown file links: no missing targets were found in the reviewed files.
-- Common private-key/token patterns in current text: no matches found. This was not a dedicated secrets scan and did not inspect all Git history.
-- Repository visibility: private at review time.
+## Review completed
 
-This review did not execute the playbooks, repeat the lab on clean VMs, or run Ansible lint/syntax checks. Earlier successful lab runs remain the runtime evidence.
+- Read the README, all three playbooks, inventory example, walkthrough, findings and evidence records.
+- Confirmed both linked screenshots are present in the repository tree.
+- Checked relative Markdown links in the reviewed files; no missing local targets were found.
+- Looked for common private-key and token patterns in current text files; none were found. This was not a full history scan or dedicated secrets scan.
+- Checked the repository metadata: it is currently private.
+- Did not rerun the Ansible playbooks or perform a new lab assessment. Successful outputs already captured in the repository are the execution evidence.
 
-## Corrections made during review
+## Changes made
 
-- Added a .gitignore for live inventory, credentials and local runtime files. Ignore rules do not remove already tracked files or replace secrets scanning.
-- Qualified file-permission claims with parent-directory access requirements.
-- Distinguished file-content write restrictions from directory-based deletion/replacement.
-- Identified the saved text as an abridged terminal record.
-- Made the limits of report verification and service-namespace testing explicit.
+- Added a .gitignore for live inventory, credential and local runtime files.
+- Clarified parent-directory conditions when describing file permissions.
+- Described the limits of the access tests and mock worker accurately.
+- Updated the main project page to say the lab ran locally on your laptop with VirtualBox and that WSL was the SSH client.
 
-## Remaining work, by practical value
+## Optional improvements
 
-| Priority | Item | Why it matters / completion evidence |
-| --- | --- | --- |
-| Required for public sharing | Decide when to make the repository public or grant a reviewer access. | A private repository cannot be viewed by recruiters using an ordinary link. Visibility was not changed by this review. |
-| Strongest next technical improvement | Check that the mock report timestamp or mtime advances and a new log entry appears. | Existing report presence plus active service state can pass without proving current writes. Preserve output of the stronger check. |
-| Security evidence gap | Inspect parent directories and test deletion/replacement protection with a disposable fixture. | File mode 0600 alone does not prevent deletion through a writable parent. Do not use the customer file for a destructive test. |
-| Security evidence gap | Test an allowed and a forbidden write from inside the actual service sandbox. | Account-only runuser tests do not exercise the systemd mount namespace. |
-| Reproducibility improvement | Provide a clearly labelled synthetic starting fixture and validate on clean VMs. | Current playbooks require an existing unit and files. A fresh checkout alone cannot reconstruct the original lab. |
-| Automation improvement | Add CI syntax/lint checks, then show a passing run. | Helps catch YAML and automation regressions; no CI success is currently claimed. |
+These are ideas for a later iteration, not missing requirements for this portfolio project:
 
-A licensing choice can be made before inviting reuse. No license was added automatically because it determines permissions granted to other users.
+| Possible improvement | What it would add |
+| --- | --- |
+| Check report freshness during every run | Show that a new report and log entry were written during that run, rather than only confirming that a report exists and the service is active. The initial run screenshot already shows the worker producing synthetic output. |
+| Test an allowed and denied write inside the systemd sandbox | Add direct evidence that the service can write to its required paths and cannot write elsewhere under ProtectSystem=strict. Existing evidence shows effective systemd settings and successful mock writes. |
+| Add a synthetic starting-state setup | Let a reader prepare the fictional workload quickly. This is optional because the project investigates an already provisioned server, as described in its scenario. |
+| Add CI syntax/lint checks | Automate checks when the playbooks change. Useful for a growing repository, but not needed to make this small lab portfolio credible. |
 
-## Interview discussion points
+The repository does not need a fresh cloud host, auditd, SSH/firewall remediation, or a higher Lynis score to support its current Project 1a claims. Those can be separate projects if they match your learning goals.
 
-- Why was a dedicated non-login identity better than sharing nobody?
-- Why does NoNewPrivileges not stop writes to an already world-writable file?
-- How do ReadWritePaths and Unix permissions interact?
-- Why can an expected access denial appear as FAILED in an ad-hoc command but pass a playbook test?
-- What does changed=0 demonstrate, and what does it not demonstrate?
-- Which claims require new evidence before being made?
+## Sharing
 
-The strongest presentation is precise: explain the tested controls, the remaining risks, and the next improvement. Additional tooling is valuable when it closes a specific gap; it is not required merely to make the repository look larger.
+The repository is private now. Recruiters will need access unless you choose to make it public. No visibility change was made. Decide on a license only if you want to grant others permission to reuse the work.
