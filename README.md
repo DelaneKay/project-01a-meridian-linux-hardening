@@ -9,11 +9,13 @@ Meridian Digital Services is fictional. This project documents a reactive DevSec
 ## The three-part lab
 
 ```text
-My Windows workstation
-└── WSL: SSH entry point
-    └── mds-admin-01: Ansible control node
-        └── SSH over an isolated VirtualBox internal network
-            └── mds-ubuntu-server-01: target reporting server
+My Windows laptop
+├── Windows PowerShell / OpenSSH ── induction ZIP via SCP ──> mds-admin-01
+├── WSL / OpenSSH ──────────────── Lynis transfer and SSH ─> mds-admin-01
+└── VirtualBox
+    ├── mds-admin-01: Ansible control node
+    └── isolated lab network ── SSH ──> mds-ubuntu-server-01
+                                      target reporting server
 ```
 
 I built and ran this entire lab locally on my laptop using VirtualBox for the **two Ubuntu server VMs**: the admin server and the target. WSL ran on the same Windows laptop and was used for the Lynis transfer and SSH work; it was not a third VM. The induction ZIP was copied from the Windows Downloads folder to the admin VM using Windows PowerShell's OpenSSH `scp` command. The admin VM held the Ansible inventory and ran the playbooks against the target VM. The target hosted the reporting service and synthetic data.
@@ -64,7 +66,7 @@ The second run checked the report and access controls again with `changed=0`, sh
 
 ## Step-by-step walkthrough
 
-The [full lab walkthrough](docs/step-by-step-lab-walkthrough.md) follows the work from WSL and Lynis baseline collection through Ansible hardening, verification, and evidence capture. It groups related terminal commands by machine, explains each command, and gives checkpoints for the expected results. It also states the prerequisites: the playbooks remediate an existing reporting workload; the repository does not provision the original VMs, SSH access or insecure workload from scratch.
+The [project journey](docs/step-by-step-lab-walkthrough.md) is a first-person account of how I set up the local VirtualBox lab, transferred the induction ZIP, investigated the existing workload with Lynis and Linux tools, applied Ansible changes, and checked the results. It explains why I took each step and distinguishes captured commands from details that were reconstructed or not preserved.
 
 ## Repository map
 
@@ -72,7 +74,7 @@ The [full lab walkthrough](docs/step-by-step-lab-walkthrough.md) follows the wor
 README.md                         This case study, architecture and run instructions
 .gitignore                        Excludes live inventory and local credential files
 docs/findings-and-remediation.md  Evidence-to-control record
-docs/step-by-step-lab-walkthrough.md Commands and full lab sequence
+docs/step-by-step-lab-walkthrough.md First-person investigation, decisions, commands and verification
 evidence/                         Sanitized verification output and two screenshots
 lab-assets/mds-induction.zip       AI-generated synthetic workload provisioning archive
 lab-assets/mds-induction.sha256   SHA-256 checksum for the unchanged archive
@@ -83,12 +85,12 @@ ansible/                          Final playbooks copied from the admin server
   inventory/hosts.ini.example     Safe inventory example without credentials
 ```
 
-The inventory example uses placeholders rather than keys, passwords or the live inventory file. No real customer data, private keys, credentials or hidden exercise answers belong in this portfolio repository. The three playbooks were copied from `mds-admin-01`; SHA-256 checksums matched the source files. `lab-assets/mds-induction.zip` is the unchanged synthetic provisioning archive copied from Windows to the admin VM over SSH/SCP and used to seed the fictional vulnerable workload. Its SHA-256 is recorded beside it. Because it deliberately creates insecure lab state, use it only with the isolated, disposable VirtualBox setup described in the walkthrough; do not run it against a real server.
+The inventory example uses placeholders rather than keys, passwords or the live inventory file. No real customer data, private keys or credentials belong in this portfolio repository. The three playbooks were copied from `mds-admin-01`; SHA-256 checksums matched the source files. `lab-assets/mds-induction.zip` is the unchanged synthetic provisioning archive copied from Windows to the admin VM over SSH/SCP and used to seed the fictional vulnerable workload. Its SHA-256 is recorded beside it. Because it deliberately creates insecure lab state, use it only with the isolated, disposable VirtualBox setup described in the walkthrough; do not run it against a real server.
 
 
 ## Run the playbooks
 
-Start with the prepared reporting workload described in the [walkthrough prerequisites](docs/step-by-step-lab-walkthrough.md#1-required-starting-point). From the repository's `ansible` directory on the control node, copy `inventory/hosts.ini.example` to `inventory/hosts.ini`, then replace the example SSH key path with the key path already configured for your lab. Keep the real inventory and private key out of Git.
+The remediation playbooks expect the reporting service and synthetic data to exist on the target. The repository includes the same induction archive used in the lab to seed that workload; its transfer and role are described in [my project journey](docs/step-by-step-lab-walkthrough.md#2-i-established-ssh-access-and-transferred-the-induction-package). The repository does not create VirtualBox VMs or configure their adapters or SSH access. To review or rerun the remediation, I used the `ansible` directory on the admin/control node and kept the live inventory and private key out of Git.
 
 Run the playbooks in this order:
 
