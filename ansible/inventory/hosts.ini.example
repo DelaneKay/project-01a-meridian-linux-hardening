@@ -1,0 +1,12 @@
+# Safe example only. Copy to hosts.ini on the Ansible control node and review every value.
+# Never commit the live inventory, SSH private key, passwords, or sudo secrets.
+
+[linux_servers]
+mds-ubuntu-server-01 ansible_host=192.168.77.10
+
+[linux_servers:vars]
+ansible_connection=ssh
+ansible_user=mdsadmin
+ansible_ssh_private_key_file=~/.ssh/REPLACE_WITH_YOUR_TARGET_KEY
+# Set ansible_become_exe only if your lab uses a non-standard sudo binary.
+# Prompt for the become password with --ask-become-pass rather than storing it here.
