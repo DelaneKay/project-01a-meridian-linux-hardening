@@ -1,0 +1,70 @@
+---
+- name: Restrict reporting logs and archive files
+  hosts: mds-ubuntu-server-01
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: Confirm the intended target
+      ansible.builtin.assert:
+        that:
+          - ansible_host == '192.168.77.10'
+          - (ansible_connection | default('ssh')) == 'ssh'
+      tags: [always]
+
+    - name: Allow the reporting service to write logs and archives
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/mds-reports.service.d/data-paths.conf
+        content: |
+          [Service]
+          ReadWritePaths=/srv/mds/logs /srv/mds/archive
+        owner: root
+        group: root
+        mode: '0644'
+        backup: true
+      notify: Reload and restart the reporting worker
+      tags: [data_files]
+
+    - name: Restrict the reporting log directory
+      ansible.builtin.file:
+        path: /srv/mds/logs
+        state: directory
+        owner: mds-reports
+        group: mds-reports
+        mode: '0700'
+      tags: [data_files]
+
+    - name: Restrict the application log file
+      ansible.builtin.file:
+        path: /srv/mds/logs/application.log
+        state: file
+        owner: mds-reports
+        group: mds-reports
+        mode: '0600'
+      tags: [data_files]
+
+    - name: Restrict the archive directory
+      ansible.builtin.file:
+        path: /srv/mds/archive
+        state: directory
+        owner: mds-reports
+        group: mds-reports
+        mode: '0700'
+      tags: [data_files]
+
+    - name: Restrict the exported customer file
+      ansible.builtin.file:
+        path: /srv/mds/archive/export.csv
+        state: file
+        owner: mds-reports
+        group: mds-reports
+        mode: '0600'
+      tags: [data_files]
+
+  handlers:
+    - name: Reload and restart the reporting worker
+      ansible.builtin.systemd_service:
+        name: mds-reports.service
+        daemon_reload: true
+        state: restarted
+
