@@ -61,11 +61,16 @@ The second run verified the same output and access controls with `changed=0`, sh
 - [Findings and remediation record](docs/findings-and-remediation.md): evidence, risk, control, verification, and scope decisions for each finding.
 - The published playbooks were copied from `mds-admin-01` as separate YAML files after their SHA-256 checksums were matched. The earlier preflight-only draft remains outside this repository.
 
+## Step-by-step walkthrough
+
+The [full lab walkthrough](docs/step-by-step-lab-walkthrough.md) follows the work from WSL and Lynis baseline collection through Ansible hardening, verification, and evidence capture. It includes the terminal commands and explains their purpose, including the Lynis ownership check and why Ansible privilege escalation is needed for `runuser` tests.
+
 ## Repository map
 
 ```text
 README.md                         This case study, architecture and run instructions
 docs/findings-and-remediation.md  Evidence-to-control record
+docs/step-by-step-lab-walkthrough.md Commands and full lab sequence
 evidence/                         Sanitized verification output and two screenshots
 ansible/                          Final playbooks copied from the admin server
   harden.yml                      Reporting identity, systemd and customer file
