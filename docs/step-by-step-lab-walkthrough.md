@@ -10,7 +10,7 @@ An AI-assisted induction package was prepared to seed deliberately unsafe settin
 
 The main problem was that `customers.csv` had mode `0666`, so local users who could traverse its parent directories could change its contents. The logs and archive also allowed more access than the reporting worker needed. The service used a generic identity and lacked systemd restrictions. I wanted the reporting account to keep the access it needed while ordinary local accounts lost access. An administrator still needed an override through authorized sudo or root access.
 
-That goal shaped the order of my work: I isolated the lab, transferred the induction package, established a baseline, investigated actual permissions and service settings, applied focused Ansible changes, and verified both the service and the denied access paths.
+That goal shaped the order of my work: I set up the local VirtualBox network, transferred the induction package, established a baseline, investigated actual permissions and service settings, applied focused Ansible changes, and verified both the service and the denied access paths.
 
 ## 1. I built the lab on my Windows laptop
 
@@ -34,7 +34,7 @@ The [VirtualBox network evidence](../evidence/virtualbox-network.md) contains th
 
 The screenshots establish adapter attachments, but not guest routes, IP forwarding, or the state of VirtualBox shared folders, clipboard, and drag-and-drop. The induction package preflight was designed to check network state; the full preflight output and exact manual network-check commands were not preserved.
 
-The package's single-adapter assumption conflicts with the screenshots: the admin VM had two enabled adapters, host-only and internal. If this was the active configuration when the package was run, its preflight would have stopped before calling Ansible. I record that conflict rather than claim the package accepted this topology.
+The package's single-adapter assumption conflicts with the screenshots: admin Adapters 2 and 3 are visibly enabled, while Adapter 4 is not shown. If these settings were active when the package was run, at least two active adapters would conflict with its one-adapter preflight, which would stop before calling Ansible. I record that conflict rather than claim the package accepted this topology.
 The screenshots preserve only the displayed adapter settings; they do not show every adapter or VirtualBox setting, or prove guest-level routing and forwarding state.
 
 ## 2. I established SSH access and transferred the induction package
@@ -188,7 +188,7 @@ I saved two terminal screenshots: the first successful mock-worker run and the l
 - [Hardening verification record](../evidence/hardening-verification.md)
 - [Findings and remediation record](findings-and-remediation.md)
 
-The work completed here was reactive Linux service and data hardening on a fictional workload in a local VirtualBox lab. Lynis helped identify areas to investigate, but I used direct evidence to select and verify specific controls. I did not harden sshd settings or firewall rules, install auditd, or build a production reporting application. SSH provided administration and file transfer; SSH and firewall hardening were deferred to a separate proactive cloud project.
+The work completed here was reactive Linux service and data hardening on a fictional workload in a local VirtualBox lab. Lynis helped identify areas to investigate, but I used direct evidence to select and verify specific controls. I did not harden sshd settings or firewall rules, install auditd, or build a production reporting application. SSH provided administration and file transfer; SSH and firewall hardening were outside this project's scope.
 
 ## Troubleshooting I encountered
 

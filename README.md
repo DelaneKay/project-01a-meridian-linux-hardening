@@ -2,7 +2,7 @@
 
 **An existing server. An undisclosed fault. A controlled investigation.**
 
-Meridian Digital Services is fictional. This project documents a reactive DevSecOps exercise on an isolated Ubuntu reporting server that was already running when the investigation began. The goal was to discover unsafe access, explain the risk, automate proportionate fixes, and prove the reporting workload still ran. All customer records and report output in the lab were synthetic.
+Meridian Digital Services is fictional. This project documents a reactive DevSecOps exercise on a pre-existing Ubuntu reporting server in a local, two-VM VirtualBox lab. The goal was to discover unsafe access, explain the risk, automate proportionate fixes, and prove the reporting workload still ran. All customer records and report output in the lab were synthetic.
 
 > **Portfolio claim:** I assessed an existing Linux service with native tools and Lynis, used Ansible to restrict its identity and data access, and verified both the allowed and denied paths with a synthetic reporting worker.
 
@@ -14,10 +14,10 @@ My Windows laptop
 ├── WSL / OpenSSH ──────────────── Lynis transfer ──────┤
 └── VirtualBox                                        ↓
     ├── mds-admin-01: Ansible control node
-    │   ├── Host-only adapter: 192.168.56.101
-    │   └── Internal Network mds-sec-lab (archive expects .77.20; guest IP unverified)
+    │   ├── Adapter 2 host-only: 192.168.56.101
+    │   └── Adapter 3 Internal Network mds-sec-lab (archive expects .77.20; guest IP unverified)
     └── mds-ubuntu-server-01: target
-        └── Internal Network "mds-sec-lab": 192.168.77.10
+        └── Adapter 2 Internal Network mds-sec-lab (inventory host: 192.168.77.10)
 ```
 
 I built and ran this entire lab locally on my laptop using VirtualBox for the **two Ubuntu server VMs**: the admin server and the target. WSL ran on the same Windows laptop and was used for the Lynis transfer and SSH work; it was not a third VM. The induction ZIP was copied from the Windows Downloads folder to the admin VM using Windows PowerShell's OpenSSH `scp` command. The admin VM held the Ansible inventory and ran the playbooks against the target VM. The target hosted the reporting service and synthetic data.
@@ -26,7 +26,7 @@ This topology placed target-side traffic on a named VM-to-VM segment, while the 
 
 ## The scenario and the role of AI
 
-The target was **not a fresh server awaiting a standard build**. The exercise centered on a deliberately insecure reporting workload whose planted findings were withheld during the blind assessment. I copied an AI-assisted induction package from Windows to the admin server. Its own `START-HERE.md` says it had not yet been deployed, and its preflight requires exactly one active adapter on the admin VM. The VirtualBox screenshots in this repository show two enabled admin adapters, so the transferred ZIP cannot be treated as verified proof of how the observed vulnerable state was created. I investigated the state that was present on the target; the exact provisioning command or package version that placed it there is not established by the saved evidence. This was a controlled simulation, not evidence of a real-world intrusion or malicious AI attack.
+The VirtualBox screenshots show admin Adapters 2 and 3 enabled; Adapter 4 is not shown. At least two enabled adapters are visible, so the transferred ZIP cannot be treated as verified proof of how the observed vulnerable state was created.
 
 AI also helped draft and explain parts of the remediation. I checked the commands, permissions, service state, and Ansible results in the lab. The evidence below distinguishes what was observed from what is merely planned.
 
@@ -105,11 +105,11 @@ ansible-playbook -i inventory/hosts.ini harden.yml data-files.yml mock-worker.ym
 
 The first playbook creates the restricted service identity, applies systemd limits, protects the customer record file, and checks who can access it. The second permits the service's log and archive paths and locks down their ownership and modes. The third installs the synthetic reporting worker, switches the systemd unit to it, and checks the generated report, service state, and ordinary-admin access. `--ask-become-pass` makes Ansible prompt for the sudo password instead of storing it in the command or inventory.
 
-These playbooks change the lab target. Read each task before running it, confirm the inventory points at the intended isolated VM, and keep access to the VM console available for recovery.
+confirm the inventory points at the intended lab target
 
 ## Scope and limits
 
-This is **Project 1a: reactive Linux hardening**. Lynis supported the baseline investigation, but its aggregate score is not used as the measure of success; it covers many checks outside this exercise. The direct permission, systemd, service and idempotence evidence supports the narrower claims above. SSH provided the management connection, but sshd and firewall hardening, auditd and a production reporting application were **not** completed in this project. Project 1b is planned as a separate, proactive cloud-server hardening exercise.
+This is **Project 1a: reactive Linux hardening**. Lynis supported the baseline investigation, but its aggregate score is not used as the measure of success; it covers many checks outside this exercise. The direct permission, systemd, service and idempotence evidence supports the narrower claims above. SSH provided the management connection, but sshd and firewall hardening, auditd and a production reporting application were **not** completed in this project.
 
 The synthetic worker demonstrates archive and log writes in this lab. Customer-file checks use the account outside the service's filesystem namespace; the worker does not process customer data. The current mock verification checks report existence and service activity, not report freshness on every run. Parent-directory deletion permissions and out-of-scope write denial inside the service have not been demonstrated by the published tests.
 

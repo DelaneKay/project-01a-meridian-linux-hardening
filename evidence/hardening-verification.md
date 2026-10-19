@@ -60,4 +60,4 @@ The mock worker generated a clearly labelled synthetic report, remained active, 
 
 The linked text record omits terminal formatting and the interpreter warning; use the screenshots for the captured display. Report existence and service activity are checked, but freshness on each run is not asserted. Customer-file access checks run outside the service's mount namespace, and parent-directory deletion protection is not tested.
 
-The file modes and effective service properties above were checked directly on the target after remediation. The `data-files.yml` task summary is preserved from the successful Ansible run shared during the lab. This evidence demonstrates the tested controls in this isolated VM; it is not a claim that SSH, firewall, auditd, or every Lynis suggestion was remediated.
+This evidence demonstrates the tested controls in the local VirtualBox lab

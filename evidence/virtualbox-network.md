@@ -26,5 +26,5 @@ The screenshots show the target's Adapter 2 on the internal lab network and its 
 
 ## Relationship to the induction ZIP
 
-The transferred `mds-induction.zip` documents a different preflight requirement: exactly one active adapter on the admin/control VM, with its only IPv4 address set to `192.168.77.20`. The screenshots show two enabled admin adapters. If these settings were active at deployment time, `lab.py preflight` would reject the admin VM before running the deployment playbook. The ZIP's own `START-HERE.md` says it had not been deployed. The repository therefore treats this ZIP as the artifact copied to the admin VM, not as verified proof of the initial vulnerable workload's deployment.
+The screenshots show admin Adapters 2 and 3 enabled; Adapter 4 is not shown, so at least two active adapters are visible. If these settings were active at deployment time, the one-adapter preflight would reject the admin VM before running the deployment playbook.
 
