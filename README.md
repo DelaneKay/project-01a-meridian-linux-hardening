@@ -81,7 +81,7 @@ ansible/                          Final playbooks copied from the admin server
   inventory/hosts.ini.example     Safe inventory example without credentials
 ```
 
-The inventory example uses placeholders rather than keys, passwords or the live inventory file. No real customer data, private keys, credentials, raw provisioning payload, or hidden exercise answers belong in this portfolio repository. The three playbooks were copied from `mds-admin-01`; SHA-256 checksums matched the source files.
+The inventory example uses placeholders rather than keys, passwords or the live inventory file. No real customer data, private keys, credentials, raw provisioning payload, or hidden exercise answers belong in this portfolio repository. The three playbooks were copied from `mds-admin-01`; SHA-256 checksums matched the source files. The archive used to seed the deliberately vulnerable target is not in this repository yet; the walkthrough identifies it separately from the Lynis source archive.
 
 
 ## Run the playbooks
@@ -102,7 +102,7 @@ These playbooks change the lab target. Read each task before running it, confirm
 
 ## Scope and limits
 
-This is **Project 1a: reactive Linux hardening**. Lynis supported the baseline investigation, but its aggregate score is not used as the measure of success; it covers many checks outside this exercise. The direct permission, systemd, service and idempotence evidence supports the narrower claims above. SSH and firewall hardening, auditd and a production reporting application were **not** completed in this project. Project 1b is planned as a separate, proactive cloud-server hardening exercise.
+This is **Project 1a: reactive Linux hardening**. Lynis supported the baseline investigation, but its aggregate score is not used as the measure of success; it covers many checks outside this exercise. The direct permission, systemd, service and idempotence evidence supports the narrower claims above. SSH provided the management connection, but sshd and firewall hardening, auditd and a production reporting application were **not** completed in this project. Project 1b is planned as a separate, proactive cloud-server hardening exercise.
 
 The synthetic worker demonstrates archive and log writes in this lab. Customer-file checks use the account outside the service's filesystem namespace; the worker does not process customer data. The current mock verification checks report existence and service activity, not report freshness on every run. Parent-directory deletion permissions and out-of-scope write denial inside the service have not been demonstrated by the published tests.
 
