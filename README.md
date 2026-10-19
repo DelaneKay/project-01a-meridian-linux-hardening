@@ -63,7 +63,7 @@ The second run verified the same output and access controls with `changed=0`, sh
 
 ## Step-by-step walkthrough
 
-The [full lab walkthrough](docs/step-by-step-lab-walkthrough.md) follows the work from WSL and Lynis baseline collection through Ansible hardening, verification, and evidence capture. It includes the terminal commands and explains their purpose, including the Lynis ownership check and why Ansible privilege escalation is needed for `runuser` tests.
+The [full lab walkthrough](docs/step-by-step-lab-walkthrough.md) follows the work from WSL and Lynis baseline collection through Ansible hardening, verification, and evidence capture. It groups related terminal commands by machine, explains each command, and gives checkpoints for the expected results. It also states the prerequisites: the playbooks remediate an existing reporting workload; the repository does not provision the original VMs, SSH access or insecure workload from scratch.
 
 ## Repository map
 
@@ -84,15 +84,14 @@ The inventory example uses placeholders rather than keys, passwords or the live 
 
 ## Run the playbooks
 
-From the Ansible control node, copy `inventory/hosts.ini.example` to `inventory/hosts.ini`, then replace the example SSH key path with the key path already configured for your lab. Keep the real inventory and private key out of Git.
+Start with the prepared reporting workload described in the [walkthrough prerequisites](docs/step-by-step-lab-walkthrough.md#1-required-starting-point). From the repository's `ansible` directory on the control node, copy `inventory/hosts.ini.example` to `inventory/hosts.ini`, then replace the example SSH key path with the key path already configured for your lab. Keep the real inventory and private key out of Git.
 
 Run the playbooks in this order:
 
 ```sh
-cd ~/mds-devsecops/ansible
-ansible-playbook -i inventory/hosts.ini harden.yml --ask-become-pass
-ansible-playbook -i inventory/hosts.ini data-files.yml --ask-become-pass
-ansible-playbook -i inventory/hosts.ini mock-worker.yml --ask-become-pass
+# Run from this repository's ansible directory.
+ansible-playbook -i inventory/hosts.ini harden.yml data-files.yml mock-worker.yml --syntax-check
+ansible-playbook -i inventory/hosts.ini harden.yml data-files.yml mock-worker.yml --ask-become-pass
 ```
 
 The first playbook creates the restricted service identity, applies systemd limits, protects the customer record file, and checks who can access it. The second permits the service's log and archive paths and locks down their ownership and modes. The third installs the synthetic reporting worker, switches the systemd unit to it, and checks the generated report, service state, and ordinary-admin access. `--ask-become-pass` makes Ansible prompt for the sudo password instead of storing it in the command or inventory.
