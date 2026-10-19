@@ -74,26 +74,50 @@ At the first connection, verify the host-key fingerprint using the VM console be
 
 **SSH scope clarification:** SSH was configured as the management transport and the key-based transfers worked. We did not harden sshd settings in Project 1a: no SSH authentication policy, root-login setting, SSH port or firewall rule was changed here. SSH and firewall hardening were deferred to the separate proactive cloud project. Do not describe Project 1a as having hardened SSH.
 
-### AI-generated vulnerable workload archive
+### Transfer and deploy the AI-generated workload archive
 
-The assessment began with an existing, deliberately insecure reporting workload. The project description records that an AI-assisted script provisioned the fictional findings for investigation. The exact ZIP file, filename, checksum, and original extraction/deployment command are not present in this repository or the local project files I could inspect. The Lynis archive in the next stage is a different file; it contains the audit tool, not the vulnerable workload.
+You confirmed that mds-induction.zip is the archive copied from your Windows laptop to the admin server over SSH/SCP. Its SHA-256 is:
 
-The commands below are the documented Lynis transfer pattern, not confirmed historical commands for the missing AI ZIP. Once the original archive is available, replace the filename and record its real checksum:
-
-~~~sh
-# WSL: fingerprint the exact archive and copy it to the admin VM
-sha256sum <AI-generated-workload.zip>
-scp -i ~/.ssh/mds_admin_ed25519 <AI-generated-workload.zip> mdsadmin@192.168.56.101:~/
-
-# Admin VM: compare the checksum, then copy the same archive to the target
-sha256sum ~/AI-generated-workload.zip
-scp -i ~/.ssh/mds_target_ed25519 ~/AI-generated-workload.zip mdsadmin@192.168.77.10:~/
-
-# Target: compare again before extracting or running anything
-sha256sum ~/AI-generated-workload.zip
+~~~text
+f23cb7326c3fb42868286a72705d7f25cef80cb896d8ff1739193d94f0e18c07
 ~~~
 
-The angle-bracket filename is a placeholder, so these lines are a template until the actual ZIP name is known. The original extraction command and deployment command must be added from the real archive's instructions or session history. I did not substitute the separate induction package in this project: its local notes say it was not deployed on these VMs.
+The archive contains lab.py, session.json and assets/session.py. The deployment asset seeds fictional files and the deliberately permissive reporting service for the investigation. The matching file is now included in this repository under lab-assets/. A sentence in the archive's START-HERE.md says it had not been deployed; that note is stale because you confirmed this is the archive copied for this lab. We preserved the archive unchanged so its checksum remains valid.
+
+**From WSL on the Windows laptop, copy the archive to the admin VM:**
+
+~~~sh
+sha256sum /mnt/c/Users/kudak/Downloads/mds-induction.zip
+scp -i ~/.ssh/mds_admin_ed25519 /mnt/c/Users/kudak/Downloads/mds-induction.zip mdsadmin@192.168.56.101:~/
+~~~
+
+sha256sum records the archive fingerprint. SCP sends that exact file over the SSH connection using the admin key. The path under /mnt/c is how WSL accesses the Windows C: drive.
+
+**On the admin VM, verify and unpack it:**
+
+~~~sh
+sha256sum ~/mds-induction.zip
+unzip -q ~/mds-induction.zip -d ~/mds-devsecops
+cd ~/mds-devsecops/mds-induction
+~~~
+
+The first command checks that transfer did not change the archive. Unzip places the archive's top-level mds-induction directory under the project folder. Cd enters the package directory containing lab.py.
+
+**Run the package's staged checks on the admin VM:**
+
+~~~sh
+python3 lab.py preflight --ask-become-pass
+python3 lab.py deploy --ask-become-pass
+python3 lab.py verify --ask-become-pass
+~~~
+
+Preflight checks the control-node identity, Ansible version, target inventory, network addresses/routes, forwarding setting, and target SSH/sudo readiness. Deploy asks you to confirm the VirtualBox isolation checks, then seeds and verifies the synthetic vulnerable workload through Ansible. Verify checks that the intended initial state is present. These commands are the package's documented deployment workflow; the earlier chat preserved the successful remediation output, not a full transcript of each seed command.
+
+**Isolation settings recorded in the package:** both Ubuntu VMs should use one enabled VirtualBox adapter attached to the same named Internal Network; the control VM is expected at 192.168.77.20 and the target at 192.168.77.10. There should be no default route or IP forwarding, and target shared folders, shared clipboard and drag-and-drop should be disabled. This keeps the intentionally weak files and service inside the local lab network.
+
+There is one address detail to check when reproducing: the earlier WSL-to-admin SCP used 192.168.56.101, while this package's preflight expects the admin VM to have only 192.168.77.20. Those may describe different setup phases, but the package rejects a control VM with extra active interfaces or a different address. Follow the actual VirtualBox network state in which you ran deploy; do not silently combine both settings. The exact VirtualBox click sequence and any network transition between transfer and deployment were not preserved.
+
+The package's START-HERE file also says the target should have a pre-deployment snapshot named 01-Pre-Vulnerable-Lab. Its rollback instructions restore that snapshot from VirtualBox Manager. The package does not change SSH configuration, firewall rules, routes, SSH keys, or real customer records.
 
 The playbooks require an already provisioned target. They do not create VMs, network adapters, SSH keys, Ansible installation or the initial workload. The target must contain:
 
