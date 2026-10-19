@@ -8,7 +8,9 @@ Meridian Digital Services is a fictional company. Its reporting worker reads cus
 
 My task was to investigate the existing server, identify risks to the reporting service and its data, and apply proportionate fixes while keeping the service available. The records and report output in this lab were synthetic. This was a controlled exercise on my laptop in VirtualBox, not a real breach.
 
-I started by setting up the lab and establishing a baseline. I then examined the service and its files, applied focused Ansible changes, and checked whether the service still worked and access was restricted as intended.
+The security principles that guided my investigation were network segmentation, integrity, least privilege, confidentiality, and availability. Segmentation limits which systems can directly reach one another and can reduce the blast radius of a mistake or compromise. Integrity checks help reveal whether transferred tools or evidence changed unexpectedly. Least privilege and confidentiality guided the service identity and file permissions, while availability shaped my checks that the reporting service still ran after each change.
+
+My toolkit was VirtualBox for the two-server lab; Windows PowerShell, WSL, OpenSSH, and SCP for management and file transfer; Lynis and native Linux commands for investigation; and Ansible with systemd for remediation and verification. I used SHA-256 checksums to compare transferred files. The steps below explain the principle behind each security decision, how it applied to Meridian, and what my evidence supports.
 
 ## 1. I built the lab on my Windows laptop
 
@@ -28,9 +30,13 @@ Windows laptop
         └── Adapter 2: Internal Network mds-sec-lab (target inventory address: .77.10)
 ~~~
 
+**Principle — network segmentation and defense in depth.** Keeping the control node and target on a VirtualBox Internal Network limits direct lab traffic to VMs attached to that named network. The admin VM also had a host-only interface so I could connect from the Windows host. This arrangement helped separate host-to-admin management from admin-to-target lab traffic and limited accidental exposure through a bridged adapter. It reduces reachability and potential lateral movement; it does not by itself prove complete isolation, because guest routes, forwarding, and other VirtualBox sharing features also matter.
+
 The [VirtualBox adapter notes](../evidence/virtualbox-network.md) record the settings behind this layout. They show the admin VM using Adapter 2 as a host-only adapter and Adapter 3 on mds-sec-lab; Adapter 1 (NAT) is disabled. The host-only address used to reach the admin was 192.168.56.101. The target settings record Adapter 1 (NAT) disabled and Adapter 2 on the same internal network; Adapters 3 or 4 were not documented, so I cannot claim those were disabled. The target address 192.168.77.10 is in the Ansible inventory. The value 192.168.77.20 appears as the control-node address expected by the induction archive, but the adapter record does not verify that guest address.
 
-The written adapter record establishes the displayed adapter attachments, but not guest routes, IP forwarding, or the state of VirtualBox shared folders, clipboard, and drag-and-drop. The induction package preflight was designed to check network state; the full preflight output and exact manual network-check commands were not preserved.
+The written adapter record establishes the displayed adapter attachments, but not guest routes, IP forwarding, or the state of VirtualBox shared folders, clipboard, and drag-and-drop. The induction package preflight was designed to check network state; the full preflight output and exact manual network-check commands were not preserved. I therefore describe the intended segmentation and recorded adapter attachments, not a verified guarantee that every path into or out of each guest was blocked.
+
+This follows the ISC2 CC ideas of network security architecture and segmentation, and the Google Cybersecurity Certificate's network-security and Linux topics. The AWS Security Specialty also covers infrastructure security and network protections; here I applied the underlying security reasoning to VirtualBox and Ubuntu, not to AWS services.
 
 The package's single-adapter assumption conflicts with the recorded settings
 The adapter record covers only the settings captured; it does not establish every adapter or VirtualBox setting, or prove guest-level routing and forwarding state.
@@ -52,6 +58,8 @@ The file's SHA-256 fingerprint was:
 ~~~text
 f23cb7326c3fb42868286a72705d7f25cef80cb896d8ff1739193d94f0e18c07
 ~~~
+
+**Principle — integrity.** Integrity means protecting information and software from unauthorized or accidental alteration. A SHA-256 digest gives me a compact fingerprint to compare copies: matching hashes across transfer points support the conclusion that the bytes were unchanged between those checks. A hash by itself does not prove who created the archive or that its contents are safe; that would require a trusted source, signature, or independently trusted expected hash.
 
 I used the hash to identify the exact archive and check that the copy had not changed. The same archive is preserved in this repository at [lab-assets/mds-induction.zip](../lab-assets/mds-induction.zip), with its fingerprint in [lab-assets/mds-induction.sha256](../lab-assets/mds-induction.sha256). Its `START-HERE.md` says the package had not been deployed. I preserve the archive unchanged as the file transferred to the admin VM, not as proof that it provisioned the workload observed on the target.
 
@@ -84,7 +92,7 @@ sha256sum ~/lynis-3.1.7.tar.gz
 scp -i ~/.ssh/mds_target_ed25519 ~/lynis-3.1.7.tar.gz mdsadmin@192.168.77.10:~/
 ~~~
 
-The hash recorded for that archive was `c0808d6b9e9a784ba912a32b2b43052d57ce0a2a2741735194969a3021ab739e`. Comparing hashes across the hops helped catch transfer errors. The original archive creation command was not captured, so the repository walkthrough describes a representative packaging command separately rather than claiming it as an exact historical command.
+The hash recorded for that archive was `c0808d6b9e9a784ba912a32b2b43052d57ce0a2a2741735194969a3021ab739e`. Comparing hashes across the hops helped catch transfer errors and gave me evidence of file integrity at those points. The original archive creation command was not captured, so the repository walkthrough describes a representative packaging command separately rather than claiming it as an exact historical command.
 
 My first attempt to run Lynis from the home-directory copy failed because it could not find its include directory. I moved the installation under `/opt/lynis-3.1.7`, checked that its support files were present, and confirmed the version:
 
@@ -99,7 +107,7 @@ The command printed `3.1.7`. The initial audit command was:
 sudo ./lynis audit system --quick
 ~~~
 
-Lynis stopped at a security check because the source tree was owned by the ordinary account. I cancelled that run with Ctrl+C, inspected `/opt` and the installation, and made the installed tree root-owned and not writable by group or other users before continuing. The exact extraction and ownership-changing commands were not preserved; the final listings showed the Lynis files under `/opt/lynis-3.1.7` owned by `root:root`. That mattered because running a privileged audit over user-controlled program files would be unsafe.
+**Principle — integrity of privileged tools.** A privileged audit tool must come from files that ordinary users cannot alter. Otherwise, root could execute tampered code. Lynis stopped because the source tree was owned by my ordinary account. I cancelled that run with Ctrl+C, inspected `/opt` and the installation, and made the installed tree root-owned and not writable by group or other users before continuing. The exact extraction and ownership-changing commands were not preserved; the final listings showed the Lynis files under `/opt/lynis-3.1.7` owned by `root:root`. That mattered because running a privileged audit over user-controlled program files would be unsafe.
 
 After the baseline scan, I saved the Lynis log and report before subsequent runs could replace them:
 
@@ -111,7 +119,7 @@ sudo sha256sum /var/log/lynis.log /root/mds-audit-baseline/lynis.log /var/log/ly
 
 The directory was root-only. Matching source and saved hashes confirmed that the baseline copies matched at capture time. The `cp -n` command printed a portability warning, but completed; its suggested spelling was `--update=none`.
 
-Lynis gave me a list of suggestions, but its score did not move much after the focused fixes. That did not mean the work had no value: I had addressed specific, evidenced application-service risks, while many general host recommendations were outside this project. I used Lynis as an investigative aid and relied on the actual permission, service, and Ansible checks to demonstrate the selected improvements.
+**Principle — risk-based assessment.** A scanner is a source of leads, not a replacement for checking the system state and judging which risks matter to the service. Lynis gave me a list of suggestions, but its score did not move much after the focused fixes. That did not mean the work had no value: I had addressed specific, evidenced application-service risks, while many general host recommendations were outside this project. I used Lynis as an investigative aid and relied on the actual permission, service, and Ansible checks to demonstrate the selected improvements.
 
 ## 4. I traced the findings to actual permissions and service settings
 
@@ -122,13 +130,13 @@ I examined the service definition and the files it could access. The evidence sh
 - `/srv/mds/archive` was `0777`, and `export.csv` was `0644`.
 - The original service ran as `nobody:nogroup` with `UMask=0000`, `NoNewPrivileges=no`, `PrivateTmp=no`, `ProtectSystem=no`, and `ProtectHome=no`.
 
-These checks explained why the problem mattered. A writable customer file could be tampered with, and broad log/archive access could expose or alter reporting artifacts. The generic service identity also made it harder to give the worker only the permissions it required.
+**Principle — evidence-based risk assessment.** I needed to understand the effective permissions and service configuration before selecting controls; a finding matters when its reachable attack path and impact are clear. These checks explained why the problem mattered. A writable customer file could be tampered with, and broad log/archive access could expose or alter reporting artifacts. The generic service identity also made it harder to give the worker only the permissions it required.
 
 Lynis raised a separate warning about `/etc/sudoers.d` being root-owned with mode `0755`. I inspected the directory and the related Lynis log excerpt. The mode allowed root to write; it did not show that an ordinary account could change sudo policy. I documented the warning and left it unchanged pending comparison with the system's expected package and local policy rather than applying an unverified permission change.
 
 ## 5. I organized the Ansible remediation as separate playbooks
 
-I kept the work in separate YAML files so each control area remained reviewable and could be documented separately:
+**Principle — controlled, repeatable change.** Security configuration should be reviewable and consistently applied, so I used Ansible to declare the intended state and kept distinct control areas in separate YAML files. This supports repeatability and helps reduce manual configuration drift. I kept the work in separate YAML files so each control area remained reviewable and could be documented separately:
 
 - [harden.yml](../ansible/harden.yml) created the non-login `mds-reports` system account, configured the systemd identity and restrictions, changed ownership/mode on `customers.csv`, and checked allowed and denied access.
 - [data-files.yml](../ansible/data-files.yml) restricted the log and archive directories and files, and allowed the reporting service to write to those paths under `ProtectSystem=strict`.
@@ -144,9 +152,9 @@ ansible -i inventory/hosts.ini mds-ubuntu-server-01 -b --ask-become-pass -m ansi
 
 The playbooks asserted that the target was `192.168.77.10` before making changes. That check reduced the risk of applying the remediation to the wrong host. Each playbook used privilege escalation because it had to manage a system account, systemd drop-ins, or protected files.
 
-The first control I applied was the service identity. Ansible created `mds-reports` as a system account with no home directory and a non-login shell. A systemd drop-in then set `User=mds-reports` and `Group=mds-reports`. This gave the workload a dedicated identity whose file permissions could be scoped to its purpose.
+**Principle — least privilege.** A service should run with only the identity and access it needs, rather than sharing a generic or administrator identity. Ansible created `mds-reports` as a system account with no home directory and a non-login shell. A systemd drop-in then set `User=mds-reports` and `Group=mds-reports`. This gave the workload a dedicated identity whose file permissions could be scoped to its purpose.
 
-I next limited the service's runtime authority. The drop-in set:
+**Principle — defense in depth.** File permissions limit what the account can access, while systemd restrictions add a separate boundary around what the process can do. These controls reduce the impact of a compromised worker or coding error; they do not replace correct ownership, application security, or monitoring. I next limited the service's runtime authority. The drop-in set:
 
 | Setting | Why I used it |
 | --- | --- |
@@ -159,11 +167,13 @@ I next limited the service's runtime authority. The drop-in set:
 
 These restrictions complemented Unix ownership and modes; they did not replace them. In particular, `NoNewPrivileges` does not prevent writing a file when its permissions already allow the service to write it.
 
-For customer records, Ansible changed `customers.csv` from root-owned `0666` to `mds-reports:mds-reports` with mode `0600`. The reporting account retained read/write access; ordinary `mdsadmin` could not read or write it. I made this choice because the worker needed routine access, while authorized administrators still needed a sudo/root override.
+**Principles — confidentiality, integrity, and least privilege.** Customer data should be readable only by an authorized identity, and unauthorized writers should not be able to alter its contents. For customer records, Ansible changed `customers.csv` from root-owned `0666` to `mds-reports:mds-reports` with mode `0600`. The reporting account retained read/write access; ordinary `mdsadmin` could not read or write it. I made this choice because the worker needed routine access, while authorized administrators still needed a sudo/root override.
 
-The data-files playbook similarly set the log and archive directories to `0700`, and their existing log/export files to `0600`, owned by `mds-reports`. The systemd writable-path settings allowed the service to use those directories while `ProtectSystem=strict` made the rest of the filesystem read-only to it.
+**Principles — confidentiality, integrity, and least privilege.** Logs and exports can reveal sensitive information and may be used to investigate activity, so unnecessary access or modification weakens both privacy and trust in the records. The data-files playbook similarly set the log and archive directories to `0700`, and their existing log/export files to `0600`, owned by `mds-reports`. The systemd writable-path settings allowed the service to use those directories while `ProtectSystem=strict` made the rest of the filesystem read-only to it.
 
 ## 6. I verified the worker and access controls
+
+**Principle — verify both security and availability.** A hardening change is useful only if it enforces the intended access policy and the legitimate workload remains usable. I checked the allowed path, denied path, and service state instead of treating a successful playbook exit as sufficient proof.
 
 I did not treat a successful Ansible run alone as proof. The service remained active and systemd reported `User=mds-reports` and `Group=mds-reports`. I also checked the running process with `ps`; before the mock worker replaced it, the process was `/usr/bin/sleep infinity` running under the dedicated account.
 
@@ -179,7 +189,7 @@ The verification has limits. A `0600` file prevents ordinary users from opening 
 
 ## 7. I preserved the evidence and recorded scope
 
-I saved two terminal screenshots: the first successful mock-worker run and the later idempotent run. The repository also contains a verification record and a findings/remediation record:
+**Principle — accountability and evidence preservation.** Keeping the output of checks makes the work reviewable and supports later comparison. I saved two terminal screenshots: the first successful mock-worker run and the later idempotent run. The repository also contains a verification record and a findings/remediation record:
 
 - [Initial mock-worker run](../evidence/mock-worker-run.png)
 - [Idempotent mock-worker rerun](../evidence/mock-worker-idempotent-run.png)
@@ -187,6 +197,18 @@ I saved two terminal screenshots: the first successful mock-worker run and the l
 - [Findings and remediation record](findings-and-remediation.md)
 
 The work completed here was reactive Linux service and data hardening on a fictional workload in a local VirtualBox lab. Lynis helped identify areas to investigate, but I used direct evidence to select and verify specific controls. I did not harden sshd settings or firewall rules, install auditd, or build a production reporting application. SSH provided administration and file transfer; SSH and firewall hardening were outside this project's scope.
+
+## Learning principles and course references
+
+I mapped the controls in this project to concepts covered by these learning resources. This is a principle crosswalk for a local Linux lab; it does not mean I used AWS services or that this project proves a certification.
+
+| Learning resource | Principles I applied in this project |
+| --- | --- |
+| [ISC2 Certified in Cybersecurity (CC) exam outline](https://www.isc2.org/certifications/cc/cc-certification-exam-outline) | Confidentiality, integrity, availability; least privilege and access control; network security architecture, segmentation, and defense in depth. |
+| [Google Cybersecurity Certificate](https://grow.google/certificates/cybersecurity/) | Linux security, network security, security controls, and using evidence to investigate and reduce risk. |
+| [AWS Certified Security – Specialty exam guide](https://docs.aws.amazon.com/aws-certification/latest/security-specialty-03.html) | Identity and access management, infrastructure security, data protection, logging and monitoring, and balancing controls with workload requirements. |
+
+The specific implementations here were Linux permissions, Ansible, systemd, VirtualBox networking, and local command-line checks. The principles transfer across platforms, while AWS implementations would use AWS services and the AWS shared-responsibility model.
 
 ## Troubleshooting I encountered
 
