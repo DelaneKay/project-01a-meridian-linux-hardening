@@ -1,6 +1,6 @@
 # My Meridian Linux hardening investigation
 
-This document records my Project 1a journey: how I investigated an intentionally vulnerable reporting server, what I changed with Ansible, and how I checked that the reporting workload still worked. It is a retrospective account, not a set of instructions for a reader to follow. Command blocks show commands from the work where they were captured; reconstructed examples are identified as such.
+This document records my Project 1a journey: how I investigated an existing reporting server, what I changed with Ansible, and how I checked that the reporting workload still worked. It is a retrospective account, not a set of instructions for a reader to follow. Command blocks show commands from the work where they were captured; reconstructed examples are identified as such.
 
 ## The situation at Meridian Digital Services
 
@@ -9,6 +9,7 @@ Meridian Digital Services is a fictional company. Its reporting worker reads cus
 My task was to investigate the existing server, identify risks to the reporting service and its data, and apply proportionate fixes while keeping the service available. The records and report output in this lab were synthetic. This was a controlled exercise on my laptop in VirtualBox, not a real breach.
 
 I started by setting up the lab and establishing a baseline. I then examined the service and its files, applied focused Ansible changes, and checked whether the service still worked and access was restricted as intended.
+
 ## 1. I built the lab on my Windows laptop
 
 I ran two Ubuntu Server virtual machines locally in VirtualBox. One was the admin/control server, where I kept Ansible and ran playbooks. The other was the target reporting server. WSL was also available on the same laptop and I used it for SSH and the Lynis transfer; it was not a third VM. The induction ZIP itself was copied from Windows PowerShell, as shown by the command captured in the project conversation.
