@@ -74,26 +74,26 @@ At the first connection, verify the host-key fingerprint using the VM console be
 
 **SSH scope clarification:** SSH was configured as the management transport and the key-based transfers worked. We did not harden sshd settings in Project 1a: no SSH authentication policy, root-login setting, SSH port or firewall rule was changed here. SSH and firewall hardening were deferred to the separate proactive cloud project. Do not describe Project 1a as having hardened SSH.
 
-### Transfer and deploy the AI-generated workload archive
+### Transfer and deploy mds-induction.zip
 
-You confirmed that mds-induction.zip is the archive copied from your Windows laptop to the admin server over SSH/SCP. Its SHA-256 is:
+You confirmed that this is the archive copied from Windows to the admin server over SSH/SCP. Its SHA-256 is:
 
 ~~~text
 f23cb7326c3fb42868286a72705d7f25cef80cb896d8ff1739193d94f0e18c07
 ~~~
 
-The archive contains lab.py, session.json and assets/session.py. The deployment asset seeds fictional files and the deliberately permissive reporting service for the investigation. The matching file is now included in this repository under lab-assets/. A sentence in the archive's START-HERE.md says it had not been deployed; that note is stale because you confirmed this is the archive copied for this lab. We preserved the archive unchanged so its checksum remains valid.
+The archive contains lab.py, session.json and assets/session.py. The deployment asset seeds fictional files and the deliberately permissive reporting service for the investigation. The unchanged archive is included in this repository at lab-assets/mds-induction.zip, with its checksum beside it. A sentence in the archive's START-HERE.md says it had not been deployed; that note is stale because you confirmed this is the archive copied for this lab. We preserved the archive unchanged so its checksum remains valid.
 
-**From WSL on the Windows laptop, copy the archive to the admin VM:**
+**In Windows PowerShell on the laptop, check the ZIP and copy it to the admin VM:**
 
-~~~sh
-sha256sum /mnt/c/Users/kudak/Downloads/mds-induction.zip
-scp -i ~/.ssh/mds_admin_ed25519 /mnt/c/Users/kudak/Downloads/mds-induction.zip mdsadmin@192.168.56.101:~/
+~~~powershell
+Get-FileHash "$env:USERPROFILE\Downloads\mds-induction.zip" -Algorithm SHA256
+scp "$env:USERPROFILE\Downloads\mds-induction.zip" mdsadmin@192.168.56.101:~/
 ~~~
 
-sha256sum records the archive fingerprint. SCP sends that exact file over the SSH connection using the admin key. The path under /mnt/c is how WSL accesses the Windows C: drive.
+This is the exact SCP command shown in your screenshot. PowerShell expands $env:USERPROFILE to your Windows user folder, so SCP reads the ZIP from Downloads and sends it to the admin account's home directory. This transfer uses Windows OpenSSH from PowerShell; it does not use WSL's /mnt/c path. On the first SSH connection, verify the server's host-key fingerprint before accepting it; enter the admin account password if prompted. The SHA-256 output should match the value above.
 
-**On the admin VM, verify and unpack it:**
+**On the admin VM, verify and unpack the archive:**
 
 ~~~sh
 sha256sum ~/mds-induction.zip
@@ -101,7 +101,7 @@ unzip -q ~/mds-induction.zip -d ~/mds-devsecops
 cd ~/mds-devsecops/mds-induction
 ~~~
 
-The first command checks that transfer did not change the archive. Unzip places the archive's top-level mds-induction directory under the project folder. Cd enters the package directory containing lab.py.
+The first command checks that SCP did not change the archive. Unzip places its top-level mds-induction directory under the project folder. Cd enters the package directory containing lab.py.
 
 **Run the package's staged checks on the admin VM:**
 
@@ -115,7 +115,7 @@ Preflight checks the control-node identity, Ansible version, target inventory, n
 
 **Isolation settings recorded in the package:** both Ubuntu VMs should use one enabled VirtualBox adapter attached to the same named Internal Network; the control VM is expected at 192.168.77.20 and the target at 192.168.77.10. There should be no default route or IP forwarding, and target shared folders, shared clipboard and drag-and-drop should be disabled. This keeps the intentionally weak files and service inside the local lab network.
 
-There is one address detail to check when reproducing: the earlier WSL-to-admin SCP used 192.168.56.101, while this package's preflight expects the admin VM to have only 192.168.77.20. Those may describe different setup phases, but the package rejects a control VM with extra active interfaces or a different address. Follow the actual VirtualBox network state in which you ran deploy; do not silently combine both settings. The exact VirtualBox click sequence and any network transition between transfer and deployment were not preserved.
+The admin address used for the PowerShell SCP transfer was 192.168.56.101, while the package preflight expects the control VM at 192.168.77.20. Treat these as separate recorded roles/addresses and verify the active adapter configuration before reproducing the package deployment; the preflight can reject a control VM whose active network state does not match its assumptions. The exact VirtualBox click sequence and any network transition between transfer and deployment were not preserved.
 
 The package's START-HERE file also says the target should have a pre-deployment snapshot named 01-Pre-Vulnerable-Lab. Its rollback instructions restore that snapshot from VirtualBox Manager. The package does not change SSH configuration, firewall rules, routes, SSH keys, or real customer records.
 
@@ -127,7 +127,6 @@ The playbooks require an already provisioned target. They do not create VMs, net
 - Parent-directory traversal permissions that allow the reporting identity to reach its files.
 
 All three playbooks assert the target IP **192.168.77.10**. If yours differs, update both the inventory and the assertions in every playbook. The account names and paths describe this specific lab.
-
 ## 2. Obtain and transfer Lynis
 
 **In WSL:**
