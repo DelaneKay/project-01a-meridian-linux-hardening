@@ -206,7 +206,7 @@ I mapped the controls in this project to concepts covered by these learning reso
 | --- | --- |
 | [ISC2 Certified in Cybersecurity (CC) exam outline](https://www.isc2.org/certifications/cc/cc-certification-exam-outline) | Confidentiality, integrity, availability; least privilege and access control; network security architecture, segmentation, and defense in depth. |
 | [Google Cybersecurity Certificate](https://grow.google/certificates/cybersecurity/) | Linux security, network security, security controls, and using evidence to investigate and reduce risk. |
-| [AWS Certified Security – Specialty exam guide](https://docs.aws.amazon.com/aws-certification/latest/security-specialty-03.html) | Identity and access management, infrastructure security, data protection, logging and monitoring, and balancing controls with workload requirements. |
+| [AWS Certified Security – Specialty exam guide](https://docs.aws.amazon.com/aws-certification/latest/security-specialty-03/security-specialty-03.html) | Identity and access management, infrastructure security, data protection, logging and monitoring, and balancing controls with workload requirements. |
 
 The specific implementations here were Linux permissions, Ansible, systemd, VirtualBox networking, and local command-line checks. The principles transfer across platforms, while AWS implementations would use AWS services and the AWS shared-responsibility model.
 
