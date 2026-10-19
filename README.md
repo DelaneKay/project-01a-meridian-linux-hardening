@@ -73,7 +73,6 @@ README.md                         This case study, architecture and run instruct
 .gitignore                        Excludes live inventory and local credential files
 docs/findings-and-remediation.md  Evidence-to-control record
 docs/step-by-step-lab-walkthrough.md Commands and full lab sequence
-docs/portfolio-review.md           Review scope and optional future improvements
 evidence/                         Sanitized verification output and two screenshots
 ansible/                          Final playbooks copied from the admin server
   harden.yml                      Reporting identity, systemd and customer file
@@ -107,4 +106,4 @@ This is **Project 1a: reactive Linux hardening**. Lynis supported the baseline i
 
 The synthetic worker demonstrates archive and log writes in this lab. Customer-file checks use the account outside the service's filesystem namespace; the worker does not process customer data. The current mock verification checks report existence and service activity, not report freshness on every run. Parent-directory deletion permissions and out-of-scope write denial inside the service have not been demonstrated by the published tests.
 
-The playbooks and evidence support a focused Linux-hardening case study. A clean-VM replay, automated CI checks and production readiness have not been established. See the [review and remaining work](docs/portfolio-review.md) for the precise validation limits.
+The evidence in this repository records the investigation, Ansible changes, service checks, access checks and mock-worker runs completed in this project.
