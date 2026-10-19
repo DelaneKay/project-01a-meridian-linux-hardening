@@ -1,0 +1,35 @@
+PLAY [Run and verify the Meridian mock reporting worker]
+
+TASK [Confirm the intended target]
+ok: [mds-ubuntu-server-01] => {"changed": false, "msg": "All assertions passed"}
+
+TASK [Install the synthetic reporting worker]
+ok: [mds-ubuntu-server-01]
+
+TASK [Configure systemd to run the mock worker]
+ok: [mds-ubuntu-server-01]
+
+TASK [Apply the worker configuration before checking its output]
+
+TASK [Wait for the mock report to be created]
+ok: [mds-ubuntu-server-01]
+
+TASK [Read the synthetic report for verification]
+ok: [mds-ubuntu-server-01]
+
+TASK [Show the synthetic report result]
+ok: [mds-ubuntu-server-01] => {
+    "msg": "LAB MOCK REPORT - synthetic data only - generated 2026-10-19T20:06:49+00:00"
+}
+
+TASK [Verify the reporting service is active]
+ok: [mds-ubuntu-server-01]
+
+TASK [Verify ordinary admin cannot read the mock report]
+ok: [mds-ubuntu-server-01]
+
+TASK [Verify ordinary admin cannot write the mock report]
+ok: [mds-ubuntu-server-01]
+
+PLAY RECAP
+mds-ubuntu-server-01 : ok=9 changed=0 unreachable=0 failed=0 skipped=0 rescued=0 ignored=0
