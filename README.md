@@ -16,9 +16,9 @@ My Windows workstation
             └── mds-ubuntu-server-01: target reporting server
 ```
 
-I built and ran this entire lab locally on my laptop using VirtualBox for the **two Ubuntu server VMs**: the admin server and the target. WSL ran on the same Windows laptop and provided the SSH entry point; it was not a third VM. The admin VM held the Ansible inventory and ran the playbooks against the target VM. The admin VM held the Ansible inventory and ran the playbooks against the target VM. The target hosted the reporting service and synthetic data.
+I built and ran this entire lab locally on my laptop using VirtualBox for the **two Ubuntu server VMs**: the admin server and the target. WSL ran on the same Windows laptop and provided the SSH entry point; it was not a third VM. The admin VM held the Ansible inventory and ran the playbooks against the target VM. The target hosted the reporting service and synthetic data.
 
-This separation mirrors a common operational pattern: engineers work from a workstation or management host, while configuration automation connects to managed servers over SSH. It also meant I could validate the target from a separate control node, keep the automation off the workload host, and check that management access and the service survived each change. The VirtualBox internal network kept the exercise isolated; its addresses are lab-only.
+This separation mirrors a common operational pattern: engineers work from a workstation or management host, while configuration automation connects to managed servers over SSH. It also meant I could validate the target from a separate control node, keep the automation off the workload host, and check that management access and the service survived each change. The VirtualBox internal network kept the exercise isolated; its addresses are lab-only. The detailed VirtualBox and SSH access setup is in the step-by-step walkthrough. Project 1a used SSH to manage the target, but did not change sshd hardening settings.
 
 ## The scenario and the role of AI
 
