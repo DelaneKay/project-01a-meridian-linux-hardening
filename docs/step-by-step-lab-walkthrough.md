@@ -46,19 +46,31 @@ ip -br address lists interfaces and assigned addresses concisely; ip route shows
 
 The recorded addresses do not preserve every VirtualBox adapter setting, so match the paths above to your VM configuration rather than assuming a specific adapter number. The important separation is that the target is reached through the admin/control VM on the lab network.
 
-### Use SSH keys for each hop
+### Set up SSH key access for each hop
 
-The recorded SCP operations show two existing private keys: one on WSL for the admin VM and one on the admin VM for the target. These login commands make those two hops explicit:
+The private-key files used later were named mds_admin_ed25519 on WSL and mds_target_ed25519 on the admin VM. Their later SCP transfers succeeded. The exact key-creation and public-key-installation commands from the original setup were not captured. For someone recreating this lab, these are standard equivalent setup commands; skip key generation if the files already exist, and never overwrite a working private key.
+
+**On WSL, create a key for WSL-to-admin access, then install its public half on the admin VM:**
 
 ~~~sh
-# In WSL: connect to the admin VM
+ssh-keygen -t ed25519 -f ~/.ssh/mds_admin_ed25519 -C "mdsadmin@mds-admin-01"
+ssh-copy-id -i ~/.ssh/mds_admin_ed25519.pub mdsadmin@192.168.56.101
 ssh -i ~/.ssh/mds_admin_ed25519 mdsadmin@192.168.56.101
+~~~
 
-# In the admin VM: connect to the target
+ssh-keygen creates a private/public key pair. ssh-copy-id appends the public key to the remote account's authorized keys; it may prompt for the account's existing password or require using the VM console for initial setup. The final ssh command checks that key login works.
+
+**On the admin VM, create a separate key for admin-to-target access:**
+
+~~~sh
+ssh-keygen -t ed25519 -f ~/.ssh/mds_target_ed25519 -C "mdsadmin@mds-ubuntu-server-01"
+ssh-copy-id -i ~/.ssh/mds_target_ed25519.pub mdsadmin@192.168.77.10
 ssh -i ~/.ssh/mds_target_ed25519 mdsadmin@192.168.77.10
 ~~~
 
--i selects the private key for that hop; the username and address identify the remote account and VM. Keep each private key on the machine that uses it. At the first connection, verify the host key fingerprint using the VM console before accepting it. The exact original key-generation, public-key installation and host-fingerprint commands were not preserved; these connection commands are based on the later successful SCP commands.
+This keeps the target private key on the admin/control VM that uses it, rather than copying it to WSL. These key-generation commands are reconstructed setup instructions, not confirmed commands from our original terminal history.
+
+At the first connection, verify the host-key fingerprint using the VM console before accepting it. Host-key verification helps ensure the SSH client is connecting to the intended VM.
 
 **SSH scope clarification:** SSH was configured as the management transport and the key-based transfers worked. We did not harden sshd settings in Project 1a: no SSH authentication policy, root-login setting, SSH port or firewall rule was changed here. SSH and firewall hardening were deferred to the separate proactive cloud project. Do not describe Project 1a as having hardened SSH.
 
