@@ -54,8 +54,10 @@ The playbook recap reported `ok=7 changed=6 failed=0 unreachable=0`. A later run
 
 ## Mock worker
 
-The mock worker generated a clearly labelled synthetic report, remained active, and passed ordinary-admin read and write denial checks. The idempotent rerun reported `ok=9 changed=0 failed=0 unreachable=0`. See [the saved terminal output](mock-worker-idempotent-run.txt) and [screenshot](mock-worker-idempotent-run.png).
+The mock worker generated a clearly labelled synthetic report, remained active, and passed ordinary-admin read and write denial checks. The idempotent rerun reported `ok=9 changed=0 failed=0 unreachable=0`. See [the abridged terminal record](mock-worker-idempotent-run.txt) and [screenshot](mock-worker-idempotent-run.png).
 
 ## Evidence limits
+
+The linked text record omits terminal formatting and the interpreter warning; use the screenshots for the captured display. Report existence and service activity are checked, but freshness on each run is not asserted. Customer-file access checks run outside the service's mount namespace, and parent-directory deletion protection is not tested.
 
 The file modes and effective service properties above were checked directly on the target after remediation. The `data-files.yml` task summary is preserved from the successful Ansible run shared during the lab. This evidence demonstrates the tested controls in this isolated VM; it is not a claim that SSH, firewall, auditd, or every Lynis suggestion was remediated.
