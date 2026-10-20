@@ -34,6 +34,8 @@ Windows laptop
         └── Adapter 2: Internal Network mds-sec-lab (target inventory address: .77.10)
 ~~~
 
+![Pictorial topology of the Windows laptop, VirtualBox admin server, isolated target, and transfer paths](../evidence/lab-topology.png)
+
 I connected the admin VM and target through VirtualBox's Internal Network, `mds-sec-lab`, and used a host-only adapter to reach the admin VM from Windows. This is network segmentation: keeping the lab's VM-to-VM traffic on a separate network reduces direct exposure and limits how far a problem could spread. It reflects the defense-in-depth idea that one boundary should support, rather than replace, the others.
 
 The [VirtualBox adapter notes](../evidence/virtualbox-network.md) record the settings behind this layout. They show the admin VM using Adapter 2 as a host-only adapter and Adapter 3 on mds-sec-lab; Adapter 1 (NAT) is disabled. The host-only address used to reach the admin was 192.168.56.101. The target settings record Adapter 1 (NAT) disabled and Adapter 2 on the same internal network; Adapters 3 or 4 were not documented, so I cannot claim those were disabled. The target address 192.168.77.10 is in the Ansible inventory. The value 192.168.77.20 appears as the control-node address expected by the induction archive, but the adapter record does not verify that guest address.
