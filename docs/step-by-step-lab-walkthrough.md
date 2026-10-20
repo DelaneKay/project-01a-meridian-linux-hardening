@@ -113,6 +113,17 @@ The directory was accessible only to root. Matching hashes showed that the saved
 
 I treated Lynis as a source of leads, then checked the server itself before deciding what to fix. Its score changed little after my focused work because it includes many host-level checks outside this project. That did not erase the improvements I had made to the reporting service and its data; I verified those directly through file permissions, service settings, and Ansible results.
 
+### I checked active services and listening ports
+
+Before inspecting individual files, I looked at what was running and what network services were listening. This is a basic attack-surface check: active services and open ports show which software may receive connections and deserve closer review. My notes did not preserve the exact port listing, so I do not name specific ports as findings.
+
+~~~sh
+systemctl list-units --type=service --state=running
+sudo ss -tulpn
+~~~
+
+These are representative commands for the checks; the exact command history was not retained. One result stood out: `mds-reports.service` was active, but its configured process was `/usr/bin/sleep infinity`—a placeholder that did no reporting work. That mismatch led me to inspect the service definition and the files associated with the reporting workload, which is where I found the issues described next.
+
 ## 4. I traced the findings to actual permissions and service settings
 
 I examined the service definition and the files it could access. The evidence showed:
