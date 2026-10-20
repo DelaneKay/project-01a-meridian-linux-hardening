@@ -1,5 +1,10 @@
 # My Meridian Linux hardening investigation
 
+- **Core technologies:** Linux, Lynis, Ansible, and systemd.
+- **Problem addressed:** I investigated an existing reporting server presented as compromised and found unsafe service and data access settings to correct.
+- **Outcome:** I used Ansible to apply repeatable, idempotent hardening. The reporting account kept the access it needed, ordinary `mdsadmin` was denied, and a later playbook run reported `changed=0`.
+
+
 This is my account of Project 1a: investigating an existing reporting server, making changes with Ansible, and checking that the service still worked. Commands are shown as I used them when they were captured; anything reconstructed is labelled.
 
 ## The situation at Meridian Digital Services
