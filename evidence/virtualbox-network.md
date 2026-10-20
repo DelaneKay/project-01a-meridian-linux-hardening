@@ -1,6 +1,6 @@
 # VirtualBox network settings
 
-This written record summarizes the adapter settings used for the local two-VM lab. It documents VirtualBox attachments, not guest routes, IP forwarding, or successful connectivity by themselves.
+This record describes the VirtualBox adapter settings for my local two-VM lab. It shows how the adapters were attached; it does not record the guests' network routes or connectivity tests.
 
 ## Admin VM: `mds-admin-01`
 
@@ -12,7 +12,7 @@ The host-only adapter provided the management path to the admin VM at `192.168.5
 
 Adapter 1 was attached to NAT but disabled. Adapter 2 was enabled on the same `mds-sec-lab` Internal Network as the admin VM. The Ansible inventory records the target address as `192.168.77.10`; the adapter information does not display the guest address. Adapters 3 and 4 were not documented.
 
-The recorded settings place the admin and target on a named internal network segment and show a separate host-only management adapter on the admin VM. They do not establish the full target adapter configuration or prove that guest-level routing and forwarding were disabled.
+The admin and target shared the named internal network, while a separate host-only adapter provided my management path to the admin VM. I did not record the target's full adapter configuration or guest routing settings.
 
 ## Relationship to the induction ZIP
 
