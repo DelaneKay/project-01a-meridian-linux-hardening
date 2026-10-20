@@ -151,7 +151,7 @@ These built-in checks exposed areas for deeper review, including the reporting s
 
 ## 4. I ran Lynis before making changes
 
-With the built-in baseline recorded and no remediation applied yet, I used Lynis as a second assessment. It complemented the manual checks; it did not decide by itself which changes were appropriate. Lynis 3.1.7 was installed and run on the isolated target VM, `mds-ubuntu-server-01`. I used WSL to clone the tagged source, create an archive, record its hash, and send it to `mds-admin-01`; from there, I transferred it to the target. The admin VM was the Ansible control server, not the machine being audited. The captured transfer commands included:
+With the built-in baseline recorded and no remediation applied yet, I used Lynis as a second assessment. It complemented the manual checks; it did not decide by itself which changes were appropriate. Lynis `3.1.7` was installed and run on the isolated target VM, `mds-ubuntu-server-01`. I used `WSL` to clone the tagged source, create an archive, record its hash, and send it to `mds-admin-01`; from there, I transferred it to the target. The `mds-admin-01` VM was the Ansible control server, not the machine being audited. The captured transfer commands included:
 
 ~~~sh
 git clone --depth 1 --branch 3.1.7 https://github.com/CISOfy/lynis.git ~/lynis-3.1.7
@@ -168,7 +168,7 @@ scp -i ~/.ssh/mds_target_ed25519 ~/lynis-3.1.7.tar.gz mdsadmin@192.168.77.10:~/
 
 The hash recorded for that archive was `c0808d6b9e9a784ba912a32b2b43052d57ce0a2a2741735194969a3021ab739e`. Comparing hashes across the hops helped catch transfer errors and gave me evidence of file integrity at those points. The original archive creation command was not captured, so the repository walkthrough describes a representative packaging command separately rather than claiming it as an exact historical command.
 
-My first attempt to run Lynis from the home-directory copy failed because it could not find its include directory. I moved the installation under `/opt/lynis-3.1.7`, checked that its support files were present, and confirmed the version:
+My first attempt to run Lynis from the home-directory copy failed because it could not find its `include/` directory. I moved the installation under `/opt/lynis-3.1.7`, checked that its support files were present, and confirmed the version:
 
 ~~~sh
 cd /opt/lynis-3.1.7
@@ -181,7 +181,7 @@ The command printed `3.1.7`. The initial audit command was:
 sudo ./lynis audit system --quick
 ~~~
 
-On the isolated target VM `mds-ubuntu-server-01`, the first quick audit stopped because `/home/mdsadmin/lynis-3.1.7/include/functions` was owned by `mdsadmin`. Lynis required that file to be owned by root before running with elevated privileges. I cancelled the scan, then used a root-owned Lynis installation under `/opt/lynis-3.1.7`. The later directory listing showed the installation and its key files owned by `root:root`. I did not preserve the exact commands used to prepare that installation.
+On the isolated target VM `mds-ubuntu-server-01`, the first quick audit stopped because `/home/mdsadmin/lynis-3.1.7/include/functions` was owned by `mdsadmin`. Lynis required that file to be owned by `root` before running with elevated privileges. I cancelled the scan, then used a `root`-owned Lynis installation under `/opt/lynis-3.1.7`. The later directory listing showed the installation and its key files owned by `root:root`. I did not preserve the exact commands used to prepare that installation.
 
 I saved the Lynis log and report in a root-only directory before running another scan. This protected potentially sensitive audit output from ordinary users and preserved the baseline for later comparison:
 
@@ -191,7 +191,7 @@ sudo cp -n /var/log/lynis.log /var/log/lynis-report.dat /root/mds-audit-baseline
 sudo sha256sum /var/log/lynis.log /root/mds-audit-baseline/lynis.log /var/log/lynis-report.dat /root/mds-audit-baseline/lynis-report.dat
 ~~~
 
-The directory was accessible only to root. Matching hashes showed that the saved files were identical to the originals at the time of the copy. The copy command printed a portability warning, but it completed successfully.
+The directory was accessible only to `root`. The protected directory was `/root/mds-audit-baseline`. Matching hashes showed that the saved files were identical to the originals at the time of the copy. The `cp` command printed a portability warning, but it completed successfully.
 
 I compared Lynis's results with the built-in baseline before deciding what to fix. Its score changed little after my focused work because it includes many host-level checks outside this project. That did not erase the improvements I made to the reporting service and its data; I verified those directly through file permissions, service settings, and Ansible results.
 
