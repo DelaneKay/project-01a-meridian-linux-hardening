@@ -88,6 +88,8 @@ systemctl list-units --type=service --state=running --no-pager
 systemctl list-unit-files --type=service --state=enabled --no-pager
 systemctl list-timers --all --no-pager
 cat /etc/crontab
+ls -la /etc/cron.d /etc/cron.daily /etc/cron.weekly
+journalctl -b -u e2scrub_all.service --no-pager
 
 sudo ss -lntup
 sudo ufw status verbose
@@ -153,6 +155,7 @@ sudo sha256sum /var/log/lynis.log /root/mds-audit-baseline/lynis.log /var/log/ly
 The directory was accessible only to root. Matching hashes showed that the saved files were identical to the originals at the time of the copy. The copy command printed a portability warning, but it completed successfully.
 
 I compared Lynis's results with the built-in baseline before deciding what to fix. Its score changed little after my focused work because it includes many host-level checks outside this project. That did not erase the improvements I made to the reporting service and its data; I verified those directly through file permissions, service settings, and Ansible results.
+
 ## 5. I traced the findings to actual permissions and service settings
 
 I examined the service definition and the files it could access. The evidence showed:
