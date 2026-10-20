@@ -26,6 +26,8 @@ My Windows laptop
 
 I ran the lab locally on my Windows laptop. VirtualBox hosted the two Ubuntu Server VMs: `mds-admin-01` and the target. WSL ran on the same laptop; I used it for SSH and to transfer Lynis. It was not a third VM. I used Windows PowerShell's OpenSSH `scp` command to copy the induction ZIP from Downloads to the admin VM. Ansible and the inventory lived on the admin VM, while the reporting service and synthetic data lived on the target.
 
+![Pictorial topology of the Windows laptop, VirtualBox admin server, isolated target, and transfer paths](evidence/lab-topology.png)
+
 These are the adapter settings recorded for my local lab. All IP addresses shown are private lab addresses.
 
 ## The scenario and the role of AI
