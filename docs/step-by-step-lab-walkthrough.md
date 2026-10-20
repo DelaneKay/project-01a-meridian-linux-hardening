@@ -165,13 +165,11 @@ I applied the same access principles to logs and exports. They can contain sensi
 
 ## 6. I verified the worker and access controls
 
-I checked both sides of the change: the service should retain the access it needs, while ordinary users should be denied access. I also confirmed that the service remained active; a successful playbook run by itself would not prove either point.
+I checked that the reporting service retained the access it needed, ordinary users were denied access, and the service remained active. A successful Ansible run alone would not prove those things, so I checked the systemd settings, file permissions, and actual access results.
 
-I did not treat a successful Ansible run alone as proof. The service remained active and systemd reported `User=mds-reports` and `Group=mds-reports`. I also checked the running process with `ps`; before the mock worker replaced it, the process was `/usr/bin/sleep infinity` running under the dedicated account.
+Systemd reported `User=mds-reports` and `Group=mds-reports`. It also showed `UMask=0027`, `NoNewPrivileges=yes`, `PrivateTmp=yes`, `ProtectSystem=strict`, `ProtectHome=yes`, and the expected writable paths for records, logs, and archives. The directories were owned by `mds-reports` with mode `0700`; the customer, log, export, and mock report files were `0600`. Before I installed the mock worker, `ps` showed the placeholder `/usr/bin/sleep infinity` process running under the dedicated account.
 
-The access checks tested both sides of the policy. The reporting account could read and write the customer file. Ordinary `mdsadmin` could not read or write it. The checks were run through `runuser` with Ansible privilege escalation, because a non-root account cannot use `runuser` to switch to another user. In the playbooks, an expected permission-denied return code counted as a successful negative test.
-
-The systemd property checks later showed `UMask=0027`, `NoNewPrivileges=yes`, `PrivateTmp=yes`, `ProtectSystem=strict`, `ProtectHome=yes`, and writable paths for records, logs, and archives. The directories were owned by `mds-reports` at `0700`; the customer, log, export, and mock report files were at `0600`.
+The access checks confirmed that `mds-reports` could read and write the customer file, while ordinary `mdsadmin` could do neither. I ran these checks through `runuser` with Ansible privilege escalation, because an unprivileged account cannot use `runuser` to switch to another user. The playbooks treat the expected permission-denied result as a successful check.
 
 To prove the service still performed useful work, I replaced the placeholder with the mock worker. It wrote a clearly labelled synthetic report and log entry. The Ansible output showed the service active, the synthetic report timestamp, and successful checks that ordinary `mdsadmin` could not read or write the mock report. The mock worker exercised the archive and log paths; it did not process customer records.
 
