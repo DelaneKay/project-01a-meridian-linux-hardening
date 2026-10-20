@@ -73,9 +73,32 @@ The package documentation says that `preflight` checks the admin VM, Ansible, in
 
 ## 3. I inspected the target with built-in Linux tools
 
-Before running Lynis or changing anything, I used Ubuntu's built-in tools to understand the target's accounts, permissions, running services, startup configuration, listening ports, and firewall. This gave me a baseline and helped me decide which parts of the server needed closer investigation. The security principle was least privilege: identify who had access, what each process could do, and which network paths were exposed before changing the system.
+I did not know exactly what the induction package had changed on the target, so I needed a method that started with observation rather than assumptions. I first used read-only Linux tools to build a baseline, then used Lynis to add a systematic audit before deciding what to remediate. That approach followed least privilege: identify who had access, what each process could do, and which network paths were exposed before changing the system.
 
-The commands below are grouped with the part of the investigation they supported. They are reconstructed references based on the checks and results retained in my notes, not a verbatim transcript of every command I typed. The checks were read-only.
+### The investigation approach I followed
+
+1. **Review accounts and privileges.** Identify interactive and service accounts, check group membership and sudo rights, and distinguish direct root login from administrative work performed through sudo. Root-owned system processes are not automatically a problem; I needed to understand why a process ran as root.
+2. **Check file and directory access.** Review ownership and permissions on relevant files and their parent directories, including home directories and the reporting data paths. This shows who can read, change, or replace data.
+3. **Inventory running services.** Find what was active, identify its purpose and runtime account, and investigate anything unexpected rather than treating an unfamiliar service name as proof of compromise.
+4. **Check what persists.** Compare running services with enabled services, then review systemd timers and cron jobs. This helps reveal work that may run later or after reboot.
+5. **Inspect network exposure and firewall policy.** Identify listening ports, their owning processes and bind addresses, then review firewall rules. An open port should be assessed against its purpose and required clients before deciding to close it, restrict its binding, or filter access.
+6. **Run Lynis before remediation.** Use the scanner as a second source of findings, compare its suggestions with the built-in evidence, and only then choose changes that fit the service's needs.
+
+### Inspection tools
+
+The following table records the tools I used or planned for the investigation and the question each helped answer. It is a reference to the approach, not a single command sequence to run all at once.
+
+| Area | Tools | What I investigated |
+| --- | --- | --- |
+| Accounts and privileges | `id`, `getent passwd`, `getent group`, `sudo -l` | User identities, group membership, UID 0 accounts, and administrative permissions |
+| File access | `ls -ld`, `namei -l`, `stat` | Ownership and permissions on files and each parent directory |
+| Running services | `systemctl`, `ps` | What was running, under which account, and why |
+| Startup behaviour | `systemctl list-unit-files`, `systemctl list-timers`, cron files | Enabled services and scheduled work that could persist or run later |
+| Listening sockets | `ss -lntup` | Listening addresses, ports, and owning processes |
+| Firewall | `nft list ruleset`; `ufw status verbose` if installed | Actual filtering rules and UFW-managed policy |
+| Logs | `journalctl` | Service activity, failures, and relevant events |
+
+The command blocks below are grouped with the part of the investigation they supported. They are reconstructed references based on the checks and results retained in my notes, not a verbatim transcript of every command I typed. The checks were read-only.
 
 I began with user and group records, then checked the administrative rights for mdsadmin. This helped me distinguish the root account (UID 0) from ordinary and service accounts, and see who could administer the server. The results showed root at UID 0, mdsadmin at UID 1000 with a Bash shell, and nobody at UID 65534 with a non-login shell. No additional UID-0 account appeared in the enumeration. mdsadmin had broad (ALL : ALL) ALL sudo rights and belonged to several groups, including sudo and lxd. I recorded that as administrative access to assess against the account's role, not as proof of misuse.
 
@@ -123,12 +146,12 @@ sudo iptables -L -n -v
 sudo ip6tables -L -n -v
 ~~~
 
-These built-in checks exposed areas for deeper review, including the reporting service's identity and the permissions on its customer, log, and archive files. I recorded the baseline, then ran Lynis as a second assessment before selecting remediation.
+These built-in checks exposed areas for deeper review, including the reporting service's identity and the permissions on its customer, log, and archive files. I recorded that evidence before changing the server. The native checks gave me concrete observations; Lynis could then provide a broader, repeatable scan and help identify additional areas to assess. In the next section, I describe how I transferred and ran Lynis on the isolated target, then compared its results with this baseline before selecting remediation.
 
 
 ## 4. I ran Lynis before making changes
 
-Lynis 3.1.7 was installed and run on the isolated target VM, `mds-ubuntu-server-01`. I used WSL to clone the tagged source, create an archive, record its hash, and send it to `mds-admin-01`; from there, I transferred it to the target. The admin VM was the Ansible control server, not the machine being audited. The captured transfer commands included:
+With the built-in baseline recorded and no remediation applied yet, I used Lynis as a second assessment. It complemented the manual checks; it did not decide by itself which changes were appropriate. Lynis 3.1.7 was installed and run on the isolated target VM, `mds-ubuntu-server-01`. I used WSL to clone the tagged source, create an archive, record its hash, and send it to `mds-admin-01`; from there, I transferred it to the target. The admin VM was the Ansible control server, not the machine being audited. The captured transfer commands included:
 
 ~~~sh
 git clone --depth 1 --branch 3.1.7 https://github.com/CISOfy/lynis.git ~/lynis-3.1.7
