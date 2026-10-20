@@ -1,4 +1,4 @@
-# Project 1a / 11 — The Meridian reporting server
+# Project 1a / 11 — The Meridian Reporting Server: Reactive Linux Hardening Scenario
 
 **An existing server. An undisclosed fault. A controlled investigation.**
 
