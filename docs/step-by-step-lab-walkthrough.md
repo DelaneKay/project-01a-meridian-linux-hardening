@@ -115,24 +115,8 @@ sudo sha256sum /var/log/lynis.log /root/mds-audit-baseline/lynis.log /var/log/ly
 
 The directory was accessible only to root. Matching hashes showed that the saved files were identical to the originals at the time of the copy. The copy command printed a portability warning, but it completed successfully.
 
-I treated Lynis as a source of leads, then checked the server itself before deciding what to fix. Its score changed little after my focused work because it includes many host-level checks outside this project. That did not erase the improvements I had made to the reporting service and its data; I verified those directly through file permissions, service settings, and Ansible results.
-
-### I checked active services and listening ports
-
-Before inspecting the data files, I checked which services were running and which TCP or UDP ports were listening. This gave me a view of the server's active attack surface and helped me decide what to investigate further. I did not preserve the exact port listing, so I do not name specific ports as findings.
-
-I used these checks to see what was active and listening:
-
-~~~sh
-systemctl list-units --type=service --state=running
-sudo ss -tulpn
-~~~
-
-The first command lists active systemd services. In the second, `ss` displays socket information: `-t` and `-u` include TCP and UDP, `-l` limits the list to listening sockets, `-p` shows the owning process when available, and `-n` keeps addresses and port numbers numeric. The exact command history and port output were not preserved, so these are reconstructed examples and I do not claim specific ports from them.
-
-One result stood out: `mds-reports.service` was active, but its `ExecStart` was `/usr/bin/sleep infinity`, a placeholder that did no reporting work. The base unit also declared `nobody:nogroup`, `UMask=0000`, and no systemd restrictions such as `NoNewPrivileges`, `PrivateTmp`, or filesystem protections. That combination seemed odd for a service described as a reporting worker, so I inspected the unit and the files it was meant to use. Those checks led to the findings in the next section.
-
-## 4. I traced the findings to actual permissions and service settings
+I compared Lynis's results with the built-in baseline before deciding what to fix. Its score changed little after my focused work because it includes many host-level checks outside this project. That did not erase the improvements I made to the reporting service and its data; I verified those directly through file permissions, service settings, and Ansible results.
+## 5. I traced the findings to actual permissions and service settings
 
 I examined the service definition and the files it could access. The evidence showed:
 
@@ -145,7 +129,7 @@ I checked the effective permissions and service configuration before choosing co
 
 Sudo policy controls who can administer the server, so I checked Lynis's warning about `/etc/sudoers.d` carefully. The directory was root-owned with mode `0755`. I inspected the directory and the related Lynis log excerpt. The mode allowed root to write; it did not show that an ordinary account could change sudo policy. I documented the warning and left it unchanged pending comparison with the system's expected package and local policy rather than applying an unverified permission change.
 
-## 5. I automated the remediation with Ansible
+## 6. I automated the remediation with Ansible
 
 By this point, I knew what needed to change: the reporting worker needed a dedicated service identity, customer and report files needed tighter access, and the service needed limits on the filesystems and privileges it could use. I also needed to check that these changes did not stop the worker from running.
 
@@ -188,7 +172,7 @@ For the customer file, I applied confidentiality and least-privilege principles:
 
 I applied the same access principles to logs and exports. They can contain sensitive details and help explain what happened, so unnecessary reading or changes would weaken both confidentiality and trust in the records. The data-files playbook set the log and archive directories to `0700` and their files to `0600`, owned by `mds-reports`. The systemd writable-path settings allowed the service to use those directories while `ProtectSystem=strict` made the rest of the filesystem read-only to it.
 
-## 6. I verified the worker and access controls
+## 7. I verified the worker and access controls
 
 I checked that the reporting service retained the access it needed, ordinary users were denied access, and the service remained active. A successful Ansible run alone would not prove those things, so I checked the systemd settings, file permissions, and actual access results.
 
@@ -202,7 +186,7 @@ I also reran the playbooks. The final mock-worker verification run reported `cha
 
 The verification has limits. A `0600` file prevents ordinary users from opening it directly, but deletion or replacement also depends on permissions on its parent directory. The published checks confirmed read/write permissions on the file, not deletion behavior. The mock worker did not test forbidden writes from inside every systemd isolation boundary, and report-existence checks alone do not prove a fresh write when an older report is already present.
 
-## 7. I preserved the evidence and recorded scope
+## 8. I preserved the evidence and recorded scope
 
 I saved two terminal screenshots so the checks could be reviewed later: the first successful mock-worker run and the later rerun, where Ansible reported no further changes. The repository also contains a verification record and a findings/remediation record:
 
