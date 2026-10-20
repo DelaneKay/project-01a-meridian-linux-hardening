@@ -2,7 +2,7 @@
 
 **An existing server. An undisclosed fault. A controlled investigation.**
 
-Meridian Digital Services is fictional. This project documents a reactive DevSecOps exercise on a pre-existing Ubuntu reporting server in a local, two-VM VirtualBox lab. The goal was to discover unsafe access, explain the risk, automate proportionate fixes, and prove the reporting workload still ran. All customer records and report output in the lab were synthetic.
+Meridian Digital Services is fictional. This project follows my investigation of an existing Ubuntu reporting server in a two-VM VirtualBox lab. I looked for unsafe access, assessed the risk, automated focused fixes, and checked that the reporting service still worked. All customer records and reports were synthetic.
 
 > **Portfolio claim:** I assessed an existing Linux service with native tools and Lynis, used Ansible to restrict its identity and data access, and verified both the allowed and denied paths with a synthetic reporting worker.
 
@@ -20,13 +20,13 @@ My Windows laptop
         └── Adapter 2 Internal Network mds-sec-lab (inventory host: 192.168.77.10)
 ```
 
-I built and ran this entire lab locally on my laptop using VirtualBox for the **two Ubuntu server VMs**: the admin server and the target. WSL ran on the same Windows laptop and was used for the Lynis transfer and SSH work; it was not a third VM. The induction ZIP was copied from the Windows Downloads folder to the admin VM using Windows PowerShell's OpenSSH `scp` command. The admin VM held the Ansible inventory and ran the playbooks against the target VM. The target hosted the reporting service and synthetic data.
+I ran the lab locally on my Windows laptop. VirtualBox hosted the two Ubuntu Server VMs: `mds-admin-01` and the target. WSL ran on the same laptop; I used it for SSH and to transfer Lynis. It was not a third VM. I used Windows PowerShell's OpenSSH `scp` command to copy the induction ZIP from Downloads to the admin VM. Ansible and the inventory lived on the admin VM, while the reporting service and synthetic data lived on the target.
 
 The written adapter record documents the settings, but does not establish guest routing or complete egress isolation; all addresses are lab-only.
 
 ## The scenario and the role of AI
 
-The scenario presented the existing target as compromised through an AI-generated package called `mds-induction.zip`. I had not examined the package yet, so I did not know what changes it had made. Discovering those changes became the investigation. This was a controlled VirtualBox lab with synthetic data, not a real breach.
+The scenario pointed to an AI-generated package called `mds-induction.zip` as the source of the target's unsafe setup. I had not examined it yet, so I did not know what it had changed. Finding out became the focus of my investigation. This was a controlled lab with synthetic data, not a real breach.
 
 AI also helped draft and explain parts of the remediation. I checked the commands, permissions, service state, and Ansible results in the lab. The evidence below distinguishes what was observed from what is merely planned.
 
@@ -64,7 +64,7 @@ The second run checked the report and access controls again with `changed=0`, sh
 
 - [Hardening verification record](evidence/hardening-verification.md): captured lab versions, current service properties, file permissions, and successful playbook summaries.
 - [Findings and remediation record](docs/findings-and-remediation.md): evidence, risk, control, verification, and scope decisions for each finding.
-[VirtualBox network settings](evidence/virtualbox-network.md): written summary of the adapter topology and its evidence limits.
+- [VirtualBox network settings](evidence/virtualbox-network.md): written summary of the adapter topology and its evidence limits.
 - The published playbooks were copied from `mds-admin-01` as separate YAML files after their SHA-256 checksums were matched. The earlier preflight-only draft remains outside this repository.
 
 ## Step-by-step walkthrough
@@ -88,12 +88,12 @@ ansible/                          Final playbooks copied from the admin server
   inventory/hosts.ini.example     Safe inventory example without credentials
 ```
 
-The inventory example uses placeholders rather than keys, passwords or the live inventory file. No real customer data, private keys or credentials belong in this portfolio repository. The three playbooks were copied from `mds-admin-01`; SHA-256 checksums matched the source files. `lab-assets/mds-induction.zip` is the unchanged induction archive copied from Windows to the admin VM over SSH/SCP. Its SHA-256 is recorded beside it. The archive says it had not been deployed, and its one-adapter preflight conflicts with the saved admin settings, so this repository does not claim that it seeded the target. Its deploy mode is designed to create insecure lab state; treat it as a lab-only artifact and do not run it against a real server.
+The inventory example uses placeholders; it contains no private keys, passwords, or live host details. I did not include real customer data or credentials in the repository. I copied the three playbooks from `mds-admin-01` and checked their SHA-256 hashes against the source files. The unchanged `mds-induction.zip` archive is also included, with its checksum. Its deployment workflow is designed to create an insecure lab setup, so it belongs only in this controlled exercise and should never be run against a real server.
 
 
 ## Run the playbooks
 
-The remediation playbooks expect the reporting service and synthetic data to exist on the target. The repository preserves the induction ZIP that I copied to the admin VM, but the archive says it was not deployed, and its preflight assumptions conflict with the saved VirtualBox adapter settings. The [project journey](docs/step-by-step-lab-walkthrough.md#2-i-established-ssh-access-and-transferred-the-induction-package) records that uncertainty. The repository does not create VirtualBox VMs or configure their adapters or SSH access. To review or rerun the remediation, I used the `ansible` directory on the admin/control node and kept the live inventory and private key out of Git.
+The remediation playbooks expect the reporting service and synthetic data to already exist on the target. The repository includes the induction ZIP I copied to the admin VM, but does not include VirtualBox setup or SSH configuration. The [project journey](docs/step-by-step-lab-walkthrough.md#2-i-established-ssh-access-and-transferred-the-induction-package) explains what I did and what I could verify. I ran the playbooks from the `ansible` directory on the admin VM and kept the live inventory and private key out of Git.
 
 Run the playbooks in this order:
 
@@ -105,12 +105,10 @@ ansible-playbook -i inventory/hosts.ini harden.yml data-files.yml mock-worker.ym
 
 The first playbook creates the restricted service identity, applies systemd limits, protects the customer record file, and checks who can access it. The second permits the service's log and archive paths and locks down their ownership and modes. The third installs the synthetic reporting worker, switches the systemd unit to it, and checks the generated report, service state, and ordinary-admin access. `--ask-become-pass` makes Ansible prompt for the sudo password instead of storing it in the command or inventory.
 
-confirm the inventory points at the intended lab target
-
 ## Scope and limits
 
 This is **Project 1a: reactive Linux hardening**. Lynis supported the baseline investigation, but its aggregate score is not used as the measure of success; it covers many checks outside this exercise. The direct permission, systemd, service and idempotence evidence supports the narrower claims above. SSH provided the management connection, but sshd and firewall hardening, auditd and a production reporting application were **not** completed in this project.
 
 The synthetic worker demonstrates archive and log writes in this lab. Customer-file checks use the account outside the service's filesystem namespace; the worker does not process customer data. The current mock verification checks report existence and service activity, not report freshness on every run. Parent-directory deletion permissions and out-of-scope write denial inside the service have not been demonstrated by the published tests.
 
-The evidence in this repository records the investigation, Ansible changes, service checks, access checks and mock-worker runs completed in this project.
+The repository contains the investigation notes, Ansible changes, service and access checks, and mock-worker run evidence from this project.
