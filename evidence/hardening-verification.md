@@ -1,6 +1,6 @@
 # Hardening verification evidence
 
-This file summarizes sanitized outputs from successful lab runs and read-only checks. No passwords, private keys, or customer records are included. Customer and report content was synthetic.
+This file collects sanitized output from successful lab runs and read-only checks. It contains no passwords, private keys, or real customer records; all customer and report content was synthetic.
 
 ## Lab versions
 
@@ -8,7 +8,7 @@ This file summarizes sanitized outputs from successful lab runs and read-only ch
 - Ansible control node: Ansible Core 2.20.1, Python 3.14.4
 - Target Python interpreter discovered by Ansible: `/usr/bin/python3.14`
 - Assessment tool: Lynis 3.1.7
-The recorded VirtualBox settings show admin Adapter 3 and target Adapter 2 on mds-sec-lab; admin Adapter 1 and target Adapter 1 (NAT) are disabled. The target inventory uses 192.168.77.10. The archive expects the control node at 192.168.77.20, but that guest address is not confirmed by the adapter record. Target Adapters 3 and 4 are not documented. See [VirtualBox adapter notes](virtualbox-network.md).
+The recorded settings place admin Adapter 3 and target Adapter 2 on `mds-sec-lab`; Adapter 1 (NAT) is disabled on both VMs. The inventory lists the target as `192.168.77.10`. The induction archive expects the admin VM at `192.168.77.20`, but the saved adapter settings do not confirm that address. Target Adapters 3 and 4 were not documented. More detail is in the [VirtualBox adapter notes](virtualbox-network.md).
 
 ## After `harden.yml`
 
@@ -60,4 +60,4 @@ The mock worker generated a clearly labelled synthetic report, remained active, 
 
 The linked text record omits terminal formatting and the interpreter warning; use the screenshots for the captured display. Report existence and service activity are checked, but freshness on each run is not asserted. Customer-file access checks run outside the service's mount namespace, and parent-directory deletion protection is not tested.
 
-This evidence demonstrates the tested controls in the local VirtualBox lab
+This evidence demonstrates the controls I tested in the local VirtualBox lab.
