@@ -71,7 +71,44 @@ python3 lab.py verify --ask-become-pass
 
 The package documentation says that `preflight` checks the admin VM, Ansible, inventory, network, and target SSH/sudo access. Its `deploy` stage is intended to create the synthetic starting workload, while `verify` checks the expected setup. The package also recommends taking a VirtualBox snapshot named `01-Pre-Vulnerable-Lab` before deployment. I did not keep a successful deployment transcript, so these commands and steps describe what the package was designed to do, rather than a complete record of output from my target.
 
-## 3. I moved Lynis into the investigation
+## 3. I inspected the target with built-in Linux tools
+
+Before running Lynis or changing anything, I used the tools already available on Ubuntu to understand the target's accounts, permissions, running services, startup configuration, listening ports, and firewall. This gave me a first-hand baseline and helped me decide which parts of the server needed closer investigation. The security principle was least privilege: identify who had access, what each process could do, and which network paths were actually exposed before changing the system.
+
+The inspection commands were read-only. The block below is a reconstructed reference for the checks and results retained in my notes; it is not a verbatim transcript of every command I typed:
+
+~~~sh
+getent passwd
+getent group
+id mdsadmin
+sudo -l -U mdsadmin
+namei -l /srv/mds/records/customers.csv
+
+systemctl list-units --type=service --state=running --no-pager
+systemctl list-unit-files --type=service --state=enabled --no-pager
+systemctl list-timers --all --no-pager
+cat /etc/crontab
+
+sudo ss -lntup
+sudo ufw status verbose
+sudo nft list ruleset
+sudo iptables -L -n -v
+sudo ip6tables -L -n -v
+~~~
+
+getent and id helped me map accounts and groups; sudo -l -U showed the administrative rights granted to mdsadmin. I checked file ownership and permissions along the path to the customer file because a restrictive mode on a file is not enough if an untrusted account can alter a parent directory. The retained account results showed root at UID 0, mdsadmin at UID 1000 with a Bash shell, and nobody at UID 65534 with a non-login shell. No additional UID-0 account appeared in the enumeration. mdsadmin had broad (ALL : ALL) ALL sudo rights and belonged to several groups, including sudo and lxd; I recorded that as administrative access to assess against the account's role, not as proof of misuse. The directory path to the customer file was root-owned and mode 0755, so the parent directories did not grant ordinary users write access.
+
+I then reviewed active services and services configured to start at boot. The running-service inventory included cron, ssh, systemd-logind, systemd-udevd, and user@1000; I also investigated the Meridian mds-reports service. The reporting worker appeared in both the running and enabled service inventories. SSH was running but did not appear in the enabled-service list, so its activation mechanism remained unconfirmed. These names were leads, not evidence of compromise. For example, systemd-logind manages login sessions, systemd-udevd handles device events, and user@1000 is the per-user systemd manager for UID 1000. I checked the purpose and configuration of services before treating anything as suspicious. The reporting service stood out because it was running while its unit launched /usr/bin/sleep infinity, a placeholder rather than reporting work.
+
+Scheduled jobs can run with significant privileges, so I inspected cron configuration and its file ownership as part of the same baseline. The retained results showed the inspected cron directories and files were root-owned without group or other write access. e2scrub_all had both cron fallback entries and a systemd timer; the timer was inactive and had no current-boot journal entries in the output I reviewed, so successful execution was not established. I kept this as a point to investigate rather than calling it malicious.
+
+Next I checked listening sockets and firewall policy. ss -lntup shows listening TCP/UDP sockets and, when available, the owning process; -n keeps the addresses and ports numeric. The retained socket results showed DNS on port 53 and Chrony on port 323 bound to loopback, while SSH on port 22 listened on all local IPv4 and IPv6 addresses. SSH was the only non-loopback listener shown. I did not assume that a port should be closed just because it was open: I considered its owner, purpose, bind address, and intended clients first. SSH was needed for administration, and changing SSH or firewall rules was outside the remediation completed in this project.
+
+The firewall checks showed UFW was inactive, and the recorded nftables and legacy IPv4/IPv6 listings were empty. Lynis later corroborated that the host firewall was inactive. This established the observed firewall state; it did not mean that I had hardened firewall policy. I left SSH and firewall remediation for a separate proactive-hardening project.
+
+These built-in checks exposed several areas for deeper review, including the reporting service's identity and the permissions on its customer, log, and archive files. I captured that baseline first so I could compare it with Lynis before selecting remediation.
+
+## 4. I ran Lynis before making changes
 
 Lynis 3.1.7 was installed and run on the isolated target VM, `mds-ubuntu-server-01`. I used WSL to clone the tagged source, create an archive, record its hash, and send it to `mds-admin-01`; from there, I transferred it to the target. The admin VM was the Ansible control server, not the machine being audited. The captured transfer commands included:
 
