@@ -100,7 +100,7 @@ The following table records the tools I used or planned for the investigation an
 
 The command blocks below are grouped with the part of the investigation they supported. They are reconstructed references based on the checks and results retained in my notes, not a verbatim transcript of every command I typed. The checks were read-only.
 
-I began with user and group records, then checked the administrative rights for `mdsadmin`. This helped me distinguish the root account (`UID 0`) from ordinary and service accounts, and see who could administer the server. The results showed root at `UID 0`, `mdsadmin` at `UID 1000` with a Bash shell, and `nobody` at `UID 65534` with a non-login shell. No additional UID-0 account appeared in the enumeration. `mdsadmin` had broad `(ALL : ALL) ALL` sudo rights and belonged to several groups, including sudo and lxd. I recorded that as administrative access to assess against the account's role, not as proof of misuse.
+I began with user and group records, then checked the administrative rights for `mdsadmin`. This helped me distinguish the root account (`UID 0`) from ordinary and service accounts, and see who could administer the server. The results showed root at `UID 0`, `mdsadmin` at `UID 1000` with a Bash shell, and `nobody` at `UID 65534` with a non-login shell. No additional account with `UID 0` appeared in the enumeration. `mdsadmin` had broad `(ALL : ALL) ALL` sudo rights and belonged to several groups, including `sudo` and `lxd`. I recorded that as administrative access to assess against the account's role, not as proof of misuse.
 
 ~~~sh
 getent passwd
