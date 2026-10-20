@@ -4,7 +4,6 @@
 - **Problem addressed:** Investigated an existing reporting server presented as compromised, then corrected weak service and data access controls.
 - **Outcome:** Ansible applied repeatable, idempotent hardening; access checks confirmed the reporting account retained required access and ordinary `mdsadmin` was denied. A later run reported `changed=0`.
 
-
 **An existing server. An undisclosed fault. A controlled investigation.**
 
 Meridian Digital Services is fictional. This project follows my investigation of an existing Ubuntu reporting server in a two-VM VirtualBox lab. I looked for unsafe access, assessed the risk, automated focused fixes, and checked that the reporting service still worked. All customer records and reports were synthetic.
