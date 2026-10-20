@@ -73,42 +73,58 @@ The package documentation says that `preflight` checks the admin VM, Ansible, in
 
 ## 3. I inspected the target with built-in Linux tools
 
-Before running Lynis or changing anything, I used the tools already available on Ubuntu to understand the target's accounts, permissions, running services, startup configuration, listening ports, and firewall. This gave me a first-hand baseline and helped me decide which parts of the server needed closer investigation. The security principle was least privilege: identify who had access, what each process could do, and which network paths were actually exposed before changing the system.
+Before running Lynis or changing anything, I used Ubuntu's built-in tools to understand the target's accounts, permissions, running services, startup configuration, listening ports, and firewall. This gave me a baseline and helped me decide which parts of the server needed closer investigation. The security principle was least privilege: identify who had access, what each process could do, and which network paths were exposed before changing the system.
 
-The inspection commands were read-only. The block below is a reconstructed reference for the checks and results retained in my notes; it is not a verbatim transcript of every command I typed:
+The commands below are grouped with the part of the investigation they supported. They are reconstructed references based on the checks and results retained in my notes, not a verbatim transcript of every command I typed. The checks were read-only.
+
+I began with user and group records, then checked the administrative rights for mdsadmin. This helped me distinguish the root account (UID 0) from ordinary and service accounts, and see who could administer the server. The results showed root at UID 0, mdsadmin at UID 1000 with a Bash shell, and nobody at UID 65534 with a non-login shell. No additional UID-0 account appeared in the enumeration. mdsadmin had broad (ALL : ALL) ALL sudo rights and belonged to several groups, including sudo and lxd. I recorded that as administrative access to assess against the account's role, not as proof of misuse.
 
 ~~~sh
 getent passwd
 getent group
 id mdsadmin
 sudo -l -U mdsadmin
-namei -l /srv/mds/records/customers.csv
+~~~
 
+I also checked directory ownership and permissions along the customer-file path. A restrictive mode on the file would not be enough if an ordinary user could write to a parent directory. The retained results showed the path directories were root-owned and mode 0755, so they did not grant ordinary users write access.
+
+~~~sh
+namei -l /srv/mds/records/customers.csv
+~~~
+
+Next, I compared services that were running with services configured to start at boot. This is useful because a process can be active now but not enabled for the next boot, or enabled even when it is currently stopped. The inventory included cron, ssh, systemd-logind, systemd-udevd, and user@1000; I also investigated Meridian's mds-reports service. The reporting worker appeared in both the running and enabled service inventories. SSH was running but did not appear in the enabled-service list, so its activation mechanism remained unconfirmed. These names were leads, not evidence of compromise: systemd-logind manages login sessions, systemd-udevd handles device events, and user@1000 is the per-user systemd manager for UID 1000. The reporting service stood out because its unit launched /usr/bin/sleep infinity, a placeholder rather than reporting work.
+
+~~~sh
 systemctl list-units --type=service --state=running --no-pager
 systemctl list-unit-files --type=service --state=enabled --no-pager
-systemctl list-timers --all --no-pager
+~~~
+
+Scheduled jobs can run with significant privileges, so I inspected cron files and systemd timers, including the timer's current-boot journal entries. The inspected cron directories and files were root-owned without group or other write access. e2scrub_all had cron fallback entries and a systemd timer; the timer was inactive and no current-boot journal entries appeared in the output I reviewed, so successful execution was not established. I treated this as a point to investigate, not as evidence of malicious activity.
+
+~~~sh
 cat /etc/crontab
 ls -la /etc/cron.d /etc/cron.daily /etc/cron.weekly
+systemctl list-timers --all --no-pager
 journalctl -b -u e2scrub_all.service --no-pager
+~~~
 
+I then checked which network sockets were listening and what process owned them. The results showed DNS on port 53 and Chrony on port 323 bound to loopback. SSH on port 22 listened on all local IPv4 and IPv6 addresses, making it the only non-loopback listener shown. An open port is not automatically unnecessary; I considered its owner, purpose, bind address, and intended clients before deciding whether it needed a change. SSH was needed for administration, and SSH hardening was outside this project's remediation.
+
+~~~sh
 sudo ss -lntup
+~~~
+
+Finally, I checked the host firewall through UFW, nftables, and the legacy IPv4 and IPv6 listings. UFW was inactive, and the recorded nftables and legacy listings were empty. Lynis later corroborated that the host firewall was inactive. This established the firewall state I observed; I did not apply firewall hardening in this project. I left SSH and firewall changes for a separate proactive-hardening project.
+
+~~~sh
 sudo ufw status verbose
 sudo nft list ruleset
 sudo iptables -L -n -v
 sudo ip6tables -L -n -v
 ~~~
 
-getent and id helped me map accounts and groups; sudo -l -U showed the administrative rights granted to mdsadmin. I checked file ownership and permissions along the path to the customer file because a restrictive mode on a file is not enough if an untrusted account can alter a parent directory. The retained account results showed root at UID 0, mdsadmin at UID 1000 with a Bash shell, and nobody at UID 65534 with a non-login shell. No additional UID-0 account appeared in the enumeration. mdsadmin had broad (ALL : ALL) ALL sudo rights and belonged to several groups, including sudo and lxd; I recorded that as administrative access to assess against the account's role, not as proof of misuse. The directory path to the customer file was root-owned and mode 0755, so the parent directories did not grant ordinary users write access.
+These built-in checks exposed areas for deeper review, including the reporting service's identity and the permissions on its customer, log, and archive files. I recorded the baseline, then ran Lynis as a second assessment before selecting remediation.
 
-I then reviewed active services and services configured to start at boot. The running-service inventory included cron, ssh, systemd-logind, systemd-udevd, and user@1000; I also investigated the Meridian mds-reports service. The reporting worker appeared in both the running and enabled service inventories. SSH was running but did not appear in the enabled-service list, so its activation mechanism remained unconfirmed. These names were leads, not evidence of compromise. For example, systemd-logind manages login sessions, systemd-udevd handles device events, and user@1000 is the per-user systemd manager for UID 1000. I checked the purpose and configuration of services before treating anything as suspicious. The reporting service stood out because it was running while its unit launched /usr/bin/sleep infinity, a placeholder rather than reporting work.
-
-Scheduled jobs can run with significant privileges, so I inspected cron configuration and its file ownership as part of the same baseline. The retained results showed the inspected cron directories and files were root-owned without group or other write access. e2scrub_all had both cron fallback entries and a systemd timer; the timer was inactive and had no current-boot journal entries in the output I reviewed, so successful execution was not established. I kept this as a point to investigate rather than calling it malicious.
-
-Next I checked listening sockets and firewall policy. ss -lntup shows listening TCP/UDP sockets and, when available, the owning process; -n keeps the addresses and ports numeric. The retained socket results showed DNS on port 53 and Chrony on port 323 bound to loopback, while SSH on port 22 listened on all local IPv4 and IPv6 addresses. SSH was the only non-loopback listener shown. I did not assume that a port should be closed just because it was open: I considered its owner, purpose, bind address, and intended clients first. SSH was needed for administration, and changing SSH or firewall rules was outside the remediation completed in this project.
-
-The firewall checks showed UFW was inactive, and the recorded nftables and legacy IPv4/IPv6 listings were empty. Lynis later corroborated that the host firewall was inactive. This established the observed firewall state; it did not mean that I had hardened firewall policy. I left SSH and firewall remediation for a separate proactive-hardening project.
-
-These built-in checks exposed several areas for deeper review, including the reporting service's identity and the permissions on its customer, log, and archive files. I captured that baseline first so I could compare it with Lynis before selecting remediation.
 
 ## 4. I ran Lynis before making changes
 
