@@ -22,7 +22,7 @@ My Windows laptop
 
 I ran the lab locally on my Windows laptop. VirtualBox hosted the two Ubuntu Server VMs: `mds-admin-01` and the target. WSL ran on the same laptop; I used it for SSH and to transfer Lynis. It was not a third VM. I used Windows PowerShell's OpenSSH `scp` command to copy the induction ZIP from Downloads to the admin VM. Ansible and the inventory lived on the admin VM, while the reporting service and synthetic data lived on the target.
 
-The written adapter record documents the settings, but does not establish guest routing or complete egress isolation; all addresses are lab-only.
+These are the adapter settings recorded for my local lab. All IP addresses shown are private lab addresses.
 
 ## The scenario and the role of AI
 
@@ -103,7 +103,7 @@ ansible-playbook -i inventory/hosts.ini harden.yml data-files.yml mock-worker.ym
 ansible-playbook -i inventory/hosts.ini harden.yml data-files.yml mock-worker.yml --ask-become-pass
 ```
 
-The first playbook creates the restricted service identity, applies systemd limits, protects the customer record file, and checks who can access it. The second permits the service's log and archive paths and locks down their ownership and modes. The third installs the synthetic reporting worker, switches the systemd unit to it, and checks the generated report, service state, and ordinary-admin access. `--ask-become-pass` makes Ansible prompt for the sudo password instead of storing it in the command or inventory.
+The first playbook creates the service account, applies systemd limits, protects the customer file, and checks access. The second sets ownership and permissions on logs and archives and allows the service to write there. The third installs the synthetic worker and checks its report, service state, and ordinary-admin access. `--ask-become-pass` makes Ansible prompt for the sudo password instead of storing it in the command or inventory.
 
 ## Scope and limits
 
