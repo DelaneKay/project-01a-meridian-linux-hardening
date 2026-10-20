@@ -99,7 +99,7 @@ The command printed `3.1.7`. The initial audit command was:
 sudo ./lynis audit system --quick
 ~~~
 
-Before running a privileged scan, I needed to make sure ordinary users could not alter the Lynis files that root would execute. Lynis stopped because the source tree was owned by my account, so I cancelled the run, checked the installation, and moved it under `/opt` with root ownership and no group or other write access. I did not preserve the exact commands, but the final listings showed the files owned by `root:root`.
+I ran the audit on the Ubuntu target. The first quick audit stopped because `/home/mdsadmin/lynis-3.1.7/include/functions` was owned by `mdsadmin`; Lynis required that file to be owned by root before running with elevated privileges. I cancelled the scan, then used a root-owned Lynis installation under `/opt/lynis-3.1.7`. The later directory listing showed the installation and its key files owned by `root:root`. I did not preserve the exact commands used to prepare that installation.
 
 I saved the Lynis log and report in a root-only directory before running another scan. This protected potentially sensitive audit output from ordinary users and preserved the baseline for later comparison:
 
@@ -206,7 +206,7 @@ The specific implementations here were Linux permissions, Ansible, systemd, Virt
 | --- | --- |
 | `dpkg-query -W lynis` found no package | Lynis was cloned and installed manually, so it was not registered with the package manager. |
 | Lynis could not find its include directory | I was invoking it outside the untarred installation directory. Running it from `/opt/lynis-3.1.7` resolved the path issue. |
-| Lynis flagged user-owned files | I cancelled the privileged scan, checked the installation ownership, and placed the tool under root ownership in `/opt`. |
+| Lynis stopped the quick audit because `include/functions` was owned by `mdsadmin` | I cancelled the scan on the Ubuntu target and used the root-owned installation under `/opt/lynis-3.1.7`. |
 | An ad-hoc Ansible task reported “Missing sudo password” | It needed both privilege escalation (`-b`) and a become-password prompt (`--ask-become-pass`). |
 | `runuser` refused to switch users | The Ansible command was not privileged. The working test used `-b --ask-become-pass`. |
 | The Python interpreter discovery warning appeared | Ansible had selected `/usr/bin/python3.14`; the warning did not prevent the successful runs. |
