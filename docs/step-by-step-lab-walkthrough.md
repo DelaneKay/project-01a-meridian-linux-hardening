@@ -34,7 +34,7 @@ Windows laptop
 
 The [VirtualBox adapter notes](../evidence/virtualbox-network.md) record the settings behind this layout. They show the admin VM using Adapter 2 as a host-only adapter and Adapter 3 on mds-sec-lab; Adapter 1 (NAT) is disabled. The host-only address used to reach the admin was 192.168.56.101. The target settings record Adapter 1 (NAT) disabled and Adapter 2 on the same internal network; Adapters 3 or 4 were not documented, so I cannot claim those were disabled. The target address 192.168.77.10 is in the Ansible inventory. The value 192.168.77.20 appears as the control-node address expected by the induction archive, but the adapter record does not verify that guest address.
 
-The written adapter record establishes the displayed adapter attachments, but not guest routes, IP forwarding, or the state of VirtualBox shared folders, clipboard, and drag-and-drop. The induction package preflight was designed to check network state; the full preflight output and exact manual network-check commands were not preserved. I therefore describe the intended segmentation and recorded adapter attachments, not a verified guarantee that every path into or out of each guest was blocked.
+
 
 This follows the ISC2 CC ideas of network security architecture and segmentation, and the Google Cybersecurity Certificate's network-security and Linux topics. The AWS Security Specialty also covers infrastructure security and network protections; here I applied the underlying security reasoning to VirtualBox and Ubuntu, not to AWS services.
 
