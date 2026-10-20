@@ -115,14 +115,14 @@ I treated Lynis as a source of leads, then checked the server itself before deci
 
 ### I checked active services and listening ports
 
-Before inspecting individual files, I looked at what was running and what network services were listening. This is a basic attack-surface check: active services and open ports show which software may receive connections and deserve closer review. My notes did not preserve the exact port listing, so I do not name specific ports as findings.
+Before inspecting the data files, I checked which services were running and which TCP or UDP ports were listening. This gave me a view of the server's active attack surface and helped me decide what to investigate further. I did not preserve the exact port listing, so I do not name specific ports as findings.
 
 ~~~sh
 systemctl list-units --type=service --state=running
 sudo ss -tulpn
 ~~~
 
-These are representative commands for the checks; the exact command history was not retained. One result stood out: `mds-reports.service` was active, but its configured process was `/usr/bin/sleep infinity`—a placeholder that did no reporting work. That mismatch led me to inspect the service definition and the files associated with the reporting workload, which is where I found the issues described next.
+These are representative commands; I did not preserve the exact command history or port output. One result stood out: `mds-reports.service` was active, but its `ExecStart` was `/usr/bin/sleep infinity`, a placeholder that did no reporting work. The base unit also declared `nobody:nogroup`, `UMask=0000`, and no systemd restrictions such as `NoNewPrivileges`, `PrivateTmp`, or filesystem protections. That combination seemed odd for a service described as a reporting worker, so I inspected the unit and the files it was meant to use. Those checks led to the findings in the next section.
 
 ## 4. I traced the findings to actual permissions and service settings
 
@@ -131,7 +131,7 @@ I examined the service definition and the files it could access. The evidence sh
 - `/srv/mds/records/customers.csv` was owned by root with mode `0666`. Those mode bits allowed local users who could traverse the parent directories to alter its contents.
 - `/srv/mds/logs` was `0755`, and `application.log` was `0666`.
 - `/srv/mds/archive` was `0777`, and `export.csv` was `0644`.
-- The original service ran as `nobody:nogroup` with `UMask=0000`, `NoNewPrivileges=no`, `PrivateTmp=no`, `ProtectSystem=no`, and `ProtectHome=no`.
+- The base service unit declared `User=nobody`, `Group=nogroup`, `UMask=0000`, and disabled systemd restrictions. The later drop-in set the effective service identity to `mds-reports`.
 
 I checked the effective permissions and service configuration before choosing controls. The world-writable customer file could be changed by local users who could reach it, broad log and archive permissions exposed or put reporting files at risk, and the generic service identity made it harder to grant the worker only the access it needed.
 
