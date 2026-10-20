@@ -90,7 +90,7 @@ The following table records the tools I used or planned for the investigation an
 
 | Area | Tools | What I investigated |
 | --- | --- | --- |
-| Accounts and privileges | `id`, `getent passwd`, `getent group`, `sudo -l` | User identities, group membership, UID 0 accounts, and administrative permissions |
+| Accounts and privileges | `id`, `getent passwd`, `getent group`, `sudo -l` | User identities, group membership, `UID 0` accounts, and administrative permissions |
 | File access | `ls -ld`, `namei -l`, `stat` | Ownership and permissions on files and each parent directory |
 | Running services | `systemctl`, `ps` | What was running, under which account, and why |
 | Startup behaviour | `systemctl list-unit-files`, `systemctl list-timers`, cron files | Enabled services and scheduled work that could persist or run later |
@@ -100,7 +100,7 @@ The following table records the tools I used or planned for the investigation an
 
 The command blocks below are grouped with the part of the investigation they supported. They are reconstructed references based on the checks and results retained in my notes, not a verbatim transcript of every command I typed. The checks were read-only.
 
-I began with user and group records, then checked the administrative rights for mdsadmin. This helped me distinguish the root account (UID 0) from ordinary and service accounts, and see who could administer the server. The results showed root at UID 0, mdsadmin at UID 1000 with a Bash shell, and nobody at UID 65534 with a non-login shell. No additional UID-0 account appeared in the enumeration. mdsadmin had broad (ALL : ALL) ALL sudo rights and belonged to several groups, including sudo and lxd. I recorded that as administrative access to assess against the account's role, not as proof of misuse.
+I began with user and group records, then checked the administrative rights for `mdsadmin`. This helped me distinguish the root account (`UID 0`) from ordinary and service accounts, and see who could administer the server. The results showed root at `UID 0`, `mdsadmin` at `UID 1000` with a Bash shell, and `nobody` at `UID 65534` with a non-login shell. No additional UID-0 account appeared in the enumeration. `mdsadmin` had broad `(ALL : ALL) ALL` sudo rights and belonged to several groups, including sudo and lxd. I recorded that as administrative access to assess against the account's role, not as proof of misuse.
 
 ~~~sh
 getent passwd
@@ -109,20 +109,20 @@ id mdsadmin
 sudo -l -U mdsadmin
 ~~~
 
-I also checked directory ownership and permissions along the customer-file path. A restrictive mode on the file would not be enough if an ordinary user could write to a parent directory. The retained results showed the path directories were root-owned and mode 0755, so they did not grant ordinary users write access.
+I also checked directory ownership and permissions along the customer-file path. A restrictive mode on the file would not be enough if an ordinary user could write to a parent directory. The retained results showed the path directories were root-owned and mode `0755`, so they did not grant ordinary users write access.
 
 ~~~sh
 namei -l /srv/mds/records/customers.csv
 ~~~
 
-Next, I compared services that were running with services configured to start at boot. This is useful because a process can be active now but not enabled for the next boot, or enabled even when it is currently stopped. The inventory included cron, ssh, systemd-logind, systemd-udevd, and user@1000; I also investigated Meridian's mds-reports service. The reporting worker appeared in both the running and enabled service inventories. SSH was running but did not appear in the enabled-service list, so its activation mechanism remained unconfirmed. These names were leads, not evidence of compromise: systemd-logind manages login sessions, systemd-udevd handles device events, and user@1000 is the per-user systemd manager for UID 1000. The reporting service stood out because its unit launched /usr/bin/sleep infinity, a placeholder rather than reporting work.
+Next, I compared services that were running with services configured to start at boot. This is useful because a process can be active now but not enabled for the next boot, or enabled even when it is currently stopped. The inventory included cron, ssh, `systemd-logind`, `systemd-udevd`, and `user@1000`; I also investigated Meridian's `mds-reports` service. The reporting worker appeared in both the running and enabled service inventories. SSH was running but did not appear in the enabled-service list, so its activation mechanism remained unconfirmed. These names were leads, not evidence of compromise: `systemd-logind` manages login sessions, `systemd-udevd` handles device events, and `user@1000` is the per-user systemd manager for `UID 1000`. The reporting service stood out because its unit launched `/usr/bin/sleep infinity`, a placeholder rather than reporting work.
 
 ~~~sh
 systemctl list-units --type=service --state=running --no-pager
 systemctl list-unit-files --type=service --state=enabled --no-pager
 ~~~
 
-Scheduled jobs can run with significant privileges, so I inspected cron files and systemd timers, including the timer's current-boot journal entries. The inspected cron directories and files were root-owned without group or other write access. e2scrub_all had cron fallback entries and a systemd timer; the timer was inactive and no current-boot journal entries appeared in the output I reviewed, so successful execution was not established. I treated this as a point to investigate, not as evidence of malicious activity.
+Scheduled jobs can run with significant privileges, so I inspected cron files and systemd timers, including the timer's current-boot journal entries. The inspected cron directories and files were root-owned without group or other write access. `e2scrub_all` had cron fallback entries and a systemd timer; the timer was inactive and no current-boot journal entries appeared in the output I reviewed, so successful execution was not established. I treated this as a point to investigate, not as evidence of malicious activity.
 
 ~~~sh
 cat /etc/crontab
@@ -131,7 +131,7 @@ systemctl list-timers --all --no-pager
 journalctl -b -u e2scrub_all.service --no-pager
 ~~~
 
-I then checked which network sockets were listening and what process owned them. The results showed DNS on port 53 and Chrony on port 323 bound to loopback. SSH on port 22 listened on all local IPv4 and IPv6 addresses, making it the only non-loopback listener shown. An open port is not automatically unnecessary; I considered its owner, purpose, bind address, and intended clients before deciding whether it needed a change. SSH was needed for administration, and SSH hardening was outside this project's remediation.
+I then checked which network sockets were listening and what process owned them. The results showed DNS on `port 53` and Chrony on `port 323` bound to loopback. SSH on `port 22` listened on all local IPv4 and IPv6 addresses, making it the only non-loopback listener shown. An open port is not automatically unnecessary; I considered its owner, purpose, bind address, and intended clients before deciding whether it needed a change. SSH was needed for administration, and SSH hardening was outside this project's remediation.
 
 ~~~sh
 sudo ss -lntup
