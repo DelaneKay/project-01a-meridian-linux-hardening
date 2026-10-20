@@ -99,7 +99,7 @@ The command printed `3.1.7`. The initial audit command was:
 sudo ./lynis audit system --quick
 ~~~
 
-**Principle — integrity of privileged tools.** A privileged audit tool must come from files that ordinary users cannot alter. Otherwise, root could execute tampered code. Lynis stopped because the source tree was owned by my ordinary account. I cancelled that run with Ctrl+C, inspected `/opt` and the installation, and made the installed tree root-owned and not writable by group or other users before continuing. The exact extraction and ownership-changing commands were not preserved; the final listings showed the Lynis files under `/opt/lynis-3.1.7` owned by `root:root`. That mattered because running a privileged audit over user-controlled program files would be unsafe.
+Before running a privileged scan, I needed to make sure ordinary users could not alter the Lynis files that root would execute. Lynis stopped because the source tree was owned by my account, so I cancelled the run, checked the installation, and moved it under `/opt` with root ownership and no group or other write access. I did not preserve the exact commands, but the final listings showed the files owned by `root:root`.
 
 I saved the Lynis log and report in a root-only directory before running another scan. This protected potentially sensitive audit output from ordinary users and preserved the baseline for later comparison:
 
