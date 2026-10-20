@@ -34,7 +34,7 @@ AI also helped draft and explain parts of the remediation. I checked the command
 
 | Stage | What I did | Why it mattered |
 | --- | --- | --- |
-| 1. Establish a baseline | Inspected the service, process identity, file modes, ownership and Lynis findings. | A scanner points to areas to investigate; the operating system's actual state determines the risk. |
+| 1. Establish a baseline | Checked running services, listening ports, process identity, file modes, ownership and Lynis findings. | The service and port checks showed what was active and reachable; direct inspection established the actual risk. |
 | 2. Trace access | Checked who could read or write the customer file, logs and exported report. | World-writable or world-readable paths could expose or change synthetic customer information. |
 | 3. Create a service identity | Used Ansible to create `mds-reports` as a non-login system account and run the worker under it. | The workload no longer depended on a generic identity; its permissions could be scoped to its job. |
 | 4. Limit the service | Applied `NoNewPrivileges`, `UMask=0027`, `PrivateTmp`, `ProtectHome` and `ProtectSystem=strict`, with explicit writable paths. | Systemd restrictions reduced the service's ability to gain privileges or write outside its required directories. |
