@@ -141,7 +141,13 @@ I checked the effective permissions and service configuration before choosing co
 
 Sudo policy controls who can administer the server, so I checked Lynis's warning about `/etc/sudoers.d` carefully. The directory was root-owned with mode `0755`. I inspected the directory and the related Lynis log excerpt. The mode allowed root to write; it did not show that an ordinary account could change sudo policy. I documented the warning and left it unchanged pending comparison with the system's expected package and local policy rather than applying an unverified permission change.
 
-## 5. I organized the Ansible remediation as separate playbooks
+## 5. I automated the remediation with Ansible
+
+By this point, I knew what needed to change: the reporting worker needed a dedicated service identity, customer and report files needed tighter access, and the service needed limits on the filesystems and privileges it could use. I also needed to check that these changes did not stop the worker from running.
+
+I chose Ansible because it was already available on my admin/control VM and could manage the isolated target over SSH. Its playbooks let me describe the desired configuration in YAML, apply it remotely, and check the result without repeating each change by hand.
+
+Automation is a core DevSecOps practice because it turns security requirements into repeatable, reviewable changes. That reduces manual mistakes and configuration drift, and makes it easier to apply the same controls consistently. Automation does not decide whether a control is appropriate or prove that it works; I still had to understand the risk, choose the settings, and verify the outcome.
 
 I split the Ansible work across separate YAML files so I could review each area on its own and rerun the changes consistently:
 
