@@ -117,12 +117,16 @@ I treated Lynis as a source of leads, then checked the server itself before deci
 
 Before inspecting the data files, I checked which services were running and which TCP or UDP ports were listening. This gave me a view of the server's active attack surface and helped me decide what to investigate further. I did not preserve the exact port listing, so I do not name specific ports as findings.
 
+I used these checks to see what was active and listening:
+
 ~~~sh
 systemctl list-units --type=service --state=running
 sudo ss -tulpn
 ~~~
 
-These are representative commands; I did not preserve the exact command history or port output. One result stood out: `mds-reports.service` was active, but its `ExecStart` was `/usr/bin/sleep infinity`, a placeholder that did no reporting work. The base unit also declared `nobody:nogroup`, `UMask=0000`, and no systemd restrictions such as `NoNewPrivileges`, `PrivateTmp`, or filesystem protections. That combination seemed odd for a service described as a reporting worker, so I inspected the unit and the files it was meant to use. Those checks led to the findings in the next section.
+The first command lists active systemd services. In the second, `ss` displays socket information: `-t` and `-u` include TCP and UDP, `-l` limits the list to listening sockets, `-p` shows the owning process when available, and `-n` keeps addresses and port numbers numeric. The exact command history and port output were not preserved, so these are reconstructed examples and I do not claim specific ports from them.
+
+One result stood out: `mds-reports.service` was active, but its `ExecStart` was `/usr/bin/sleep infinity`, a placeholder that did no reporting work. The base unit also declared `nobody:nogroup`, `UMask=0000`, and no systemd restrictions such as `NoNewPrivileges`, `PrivateTmp`, or filesystem protections. That combination seemed odd for a service described as a reporting worker, so I inspected the unit and the files it was meant to use. Those checks led to the findings in the next section.
 
 ## 4. I traced the findings to actual permissions and service settings
 
