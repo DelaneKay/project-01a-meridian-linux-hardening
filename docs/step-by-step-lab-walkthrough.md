@@ -69,7 +69,7 @@ The package documentation says that `preflight` checks the admin VM, Ansible, in
 
 ## 3. I moved Lynis into the investigation
 
-I used Lynis 3.1.7 to help identify areas to inspect. In WSL, I cloned the tagged source, created an archive, recorded its hash, and transferred it to the admin server. I then transferred it from the admin server to the target. The captured commands included:
+Lynis 3.1.7 was installed and run on the isolated target VM, `mds-ubuntu-server-01`. I used WSL to clone the tagged source, create an archive, record its hash, and send it to `mds-admin-01`; from there, I transferred it to the target. The admin VM was the Ansible control server, not the machine being audited. The captured transfer commands included:
 
 ~~~sh
 git clone --depth 1 --branch 3.1.7 https://github.com/CISOfy/lynis.git ~/lynis-3.1.7
@@ -99,7 +99,7 @@ The command printed `3.1.7`. The initial audit command was:
 sudo ./lynis audit system --quick
 ~~~
 
-I ran the audit on the Ubuntu target. The first quick audit stopped because `/home/mdsadmin/lynis-3.1.7/include/functions` was owned by `mdsadmin`; Lynis required that file to be owned by root before running with elevated privileges. I cancelled the scan, then used a root-owned Lynis installation under `/opt/lynis-3.1.7`. The later directory listing showed the installation and its key files owned by `root:root`. I did not preserve the exact commands used to prepare that installation.
+On the isolated target VM `mds-ubuntu-server-01`, the first quick audit stopped because `/home/mdsadmin/lynis-3.1.7/include/functions` was owned by `mdsadmin`. Lynis required that file to be owned by root before running with elevated privileges. I cancelled the scan, then used a root-owned Lynis installation under `/opt/lynis-3.1.7`. The later directory listing showed the installation and its key files owned by `root:root`. I did not preserve the exact commands used to prepare that installation.
 
 I saved the Lynis log and report in a root-only directory before running another scan. This protected potentially sensitive audit output from ordinary users and preserved the baseline for later comparison:
 
