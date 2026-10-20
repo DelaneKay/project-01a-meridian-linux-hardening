@@ -61,7 +61,7 @@ f23cb7326c3fb42868286a72705d7f25cef80cb896d8ff1739193d94f0e18c07
 
 **Principle — integrity.** Integrity means protecting information and software from unauthorized or accidental alteration. A SHA-256 digest gives me a compact fingerprint to compare copies: matching hashes across transfer points support the conclusion that the bytes were unchanged between those checks. A hash by itself does not prove who created the archive or that its contents are safe; that would require a trusted source, signature, or independently trusted expected hash.
 
-I used the hash to identify the exact archive and check that the copy had not changed. The same archive is preserved in this repository at [lab-assets/mds-induction.zip](../lab-assets/mds-induction.zip), with its fingerprint in [lab-assets/mds-induction.sha256](../lab-assets/mds-induction.sha256). Its `START-HERE.md` says the package had not been deployed. I preserve the archive unchanged as the file transferred to the admin VM, not as proof that it provisioned the workload observed on the target.
+I used the hash to identify the exact archive and check that the copy had not changed. The same archive is preserved in this repository at [lab-assets/mds-induction.zip](../lab-assets/mds-induction.zip), with its fingerprint in [lab-assets/mds-induction.sha256](../lab-assets/mds-induction.sha256).
 
 The package contains `lab.py`, `session.json`, and `assets/session.py`. Its deployment asset is designed to seed fictional records, logs, archives, and a deliberately permissive reporting service for the investigation scenario. The package documented these stages on the admin server:
 
